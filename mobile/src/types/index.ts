@@ -1,0 +1,289 @@
+// User types
+export interface User {
+  id: string;
+  email: string;
+  recoveryStartDate?: Date;
+  timezone: string;
+  preferences: UserPreferences;
+  accountStatus: string;
+  lastActive?: Date;
+}
+export interface UserPreferences {
+  notificationFrequency: 'never' | 'daily' | 'weekly' | 'custom';
+  aiPersonality: 'supportive' | 'direct' | 'gentle' | 'motivational';
+  crisisInterventionEnabled: boolean;
+  dataRetentionDays: number;
+  shareProgressWithSupport: boolean;
+  enableBiometricAuth: boolean;
+}
+// Authentication types
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: User | null;
+  token: string | null;
+  isLoading: boolean;
+  error: string | null;
+}
+export interface LoginCredentials {
+  email: string;
+  password: string;
+  deviceInfo?: {
+    deviceId?: string;
+    platform?: 'ios' | 'android' | 'web';
+    appVersion?: string;
+  };
+}
+export interface RegisterData {
+  email: string;
+  password: string;
+  recoveryStartDate?: Date;
+  privacyConsent: {
+    dataProcessing: boolean;
+    aiAnalysis: boolean;
+    crisisIntervention: boolean;
+  };
+  timezone?: string;
+}
+// AI Conversation types
+export interface ConversationMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  metadata?: {
+    sentiment?: number;
+    crisisFlags?: string[];
+    urgencyLevel?: 'low' | 'medium' | 'high' | 'critical';
+  };
+}
+export interface Conversation {
+  id: string;
+  conversationType: 'checkin' | 'crisis' | 'journal' | 'casual';
+  messages: ConversationMessage[];
+  createdAt: string;
+  endedAt?: string;
+  crisisDetected: boolean;
+}
+export interface AIResponse {
+  message: string;
+  crisisDetected: boolean;
+  severityLevel: number;
+  suggestedStrategies?: string[];
+  escalationTriggered: boolean;
+  followUpRecommended?: Date;
+  resourcesProvided?: CrisisResource[];
+}
+export interface ConversationState {
+  conversations: Conversation[];
+  currentConversation: Conversation | null;
+  isLoading: boolean;
+  error: string | null;
+}
+// Crisis types
+export interface CrisisResource {
+  type: 'hotline' | 'text' | 'chat' | 'local_service' | 'emergency';
+  name: string;
+  contact: string;
+  description: string;
+  availability: string;
+  location?: string;
+}
+export interface CrisisEvent {
+  id: string;
+  severityLevel: number;
+  createdAt: Date;
+  resolvedAt?: Date;
+  professionalContacted: boolean;
+  userSafeConfirmation?: Date;
+  followUpScheduled?: Date;
+  status: 'active' | 'resolved';
+}
+export interface CrisisState {
+  events: CrisisEvent[];
+  resources: CrisisResource[];
+  isLoading: boolean;
+  error: string | null;
+}
+// Progress types
+export interface Milestone {
+  id: string;
+  type: 'days_sober' | 'weeks_clean' | 'months_milestone' | 'custom';
+  value: number;
+  achievedDate: Date;
+  celebrationPlan?: string;
+  sharedWithSupport: boolean;
+}
+export interface CopingStrategy {
+  id: string;
+  strategyName: string;
+  strategyType: 'mindfulness' | 'physical' | 'social' | 'cognitive' | 'creative' | 'spiritual';
+  effectivenessRating?: number;
+  usageFrequency: number;
+  lastUsed?: Date;
+  customInstructions?: string;
+}
+export interface MoodEntry {
+  date: Date;
+  rating: number;
+  notes?: string;
+}
+export interface ProgressMetrics {
+  currentStreak: number;
+  longestStreak: number;
+  totalDaysTracked: number;
+  moodTrends: MoodEntry[];
+  copingStrategyEffectiveness: CopingStrategy[];
+  upcomingMilestones: Milestone[];
+  recentAchievements: Milestone[];
+}
+export interface ProgressState {
+  metrics: ProgressMetrics | null;
+  milestones: Milestone[];
+  copingStrategies: CopingStrategy[];
+  isLoading: boolean;
+  error: string | null;
+}
+// Journal types
+export interface JournalEntry {
+  id: string;
+  content: string;
+  moodRating?: number;
+  triggerTags: string[];
+  copingStrategiesUsed: string[];
+  entryDate: Date;
+  aiAnalysis?: {
+    sentiment: number;
+    themes: string[];
+    concerns: string[];
+    positiveIndicators: string[];
+    recommendedActions: string[];
+  };
+}
+export interface JournalState {
+  entries: JournalEntry[];
+  currentEntry: JournalEntry | null;
+  isLoading: boolean;
+  error: string | null;
+}
+// Navigation types
+export type RootStackParamList = {
+  Splash: undefined;
+  Onboarding: undefined;
+  Auth: undefined;
+  Main: undefined;
+  Crisis: { eventId?: string };
+};
+export type AuthStackParamList = {
+  Login: undefined;
+  Register: undefined;
+  ForgotPassword: undefined;
+};
+export type MainTabParamList = {
+  Home: undefined;
+  Chat: undefined;
+  Journal: undefined;
+  Progress: undefined;
+  Support: undefined; // Now uses CommunityNavigator
+};
+export type ChatStackParamList = {
+  ChatList: undefined;
+  ChatConversation: { conversationId?: string };
+  CrisisResources: undefined;
+};
+export type JournalStackParamList = {
+  JournalList: undefined;
+  JournalEntry: { entryId?: string };
+  JournalAnalysis: { entryId: string };
+};
+export type ProgressStackParamList = {
+  ProgressDashboard: undefined;
+  Milestones: undefined;
+  CopingStrategies: undefined;
+  MoodTracker: undefined;
+};
+export type SupportStackParamList = {
+  SupportMain: undefined;
+  PrivacySettings: undefined;
+  Community: undefined;
+};
+// API types
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+  timestamp: string;
+}
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+// App state
+export interface RootState {
+  auth: AuthState;
+  conversations: ConversationState;
+  crisis: CrisisState;
+  progress: ProgressState;
+  journal: JournalState;
+}
+// Notification types
+export interface NotificationData {
+  id: string;
+  title: string;
+  body: string;
+  type: 'checkin' | 'milestone' | 'crisis' | 'reminder';
+  scheduledTime?: Date;
+  data?: any;
+}
+// Biometric types
+export interface BiometricConfig {
+  enabled: boolean;
+  type: 'fingerprint' | 'face' | 'iris' | 'voice';
+  fallbackToPassword: boolean;
+}
+// Device types
+export interface DeviceInfo {
+  deviceId: string;
+  platform: 'ios' | 'android';
+  appVersion: string;
+  osVersion: string;
+  model: string;
+}
+// Error types
+export interface AppError {
+  code: string;
+  message: string;
+  details?: any;
+  timestamp: Date;
+}
+// Form types
+export interface FormField {
+  value: string;
+  error?: string;
+  touched: boolean;
+}
+export interface FormState {
+  [key: string]: FormField;
+}
+// Theme types
+export interface ThemeColors {
+  primary: string;
+  secondary: string;
+  background: string;
+  surface: string;
+  text: string;
+  error: string;
+  success: string;
+  warning: string;
+}
+// Storage types
+export interface StorageItem {
+  key: string;
+  value: any;
+  encrypted?: boolean;
+  expiresAt?: Date;
+}

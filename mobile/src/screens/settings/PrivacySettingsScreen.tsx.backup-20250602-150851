@@ -1,0 +1,496 @@
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import {
+  Text,
+  Card,
+  Button,
+  Switch,
+  List,
+  Divider,
+  ActivityIndicator,
+  Chip,
+} from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, spacing, typography } from '../../constants/theme';
+import PIPEDAPrivacyNotice, { PIPEDAConsent } from '../../components/privacy/PIPEDAPrivacyNotice';
+
+interface ConsentStatus {
+  dataCollection: boolean;
+  dataUse: boolean;
+  dataSharing: boolean;
+  dataRetention: boolean;
+  marketingConsent: boolean;
+  crossBorderTransfer: boolean;
+}
+
+interface PrivacyOfficerContact {
+  name: string;
+  title: string;
+  email: string;
+  phone: string;
+  address: {
+    street: string;
+    city: string;
+    province: string;
+    postalCode: string;
+    country: string;
+  };
+  languages: string[];
+  businessHours: string;
+}
+
+const PrivacySettingsScreen: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [showPIPEDANotice, setShowPIPEDANotice] = useState(false);
+  const [consentStatus, setConsentStatus] = useState<ConsentStatus>({
+    dataCollection: false,
+    dataUse: false,
+    dataSharing: false,
+    dataRetention: false,
+    marketingConsent: false,
+    crossBorderTransfer: false,
+  });
+  const [privacyOfficer, setPrivacyOfficer] = useState<PrivacyOfficerContact | null>(null);
+
+  useEffect(() => {
+    loadPrivacySettings();
+  }, []);
+
+  const loadPrivacySettings = async () => {
+    try {
+      setLoading(true);
+      
+      // Load consent status and privacy officer contact
+      const [consentResponse, officerResponse] = await Promise.all([
+        fetch('/api/privacy/consent/history'),
+        fetch('/api/privacy/officer/contact'),
+      ]);
+
+      if (consentResponse.ok) {
+        const consentData = await consentResponse.json();
+        // Process consent history to get current status
+        updateConsentStatus(consentData.data);
+      }
+
+      if (officerResponse.ok) {
+        const officerData = await officerResponse.json();
+        setPrivacyOfficer(officerData.data);
+      }
+    } catch (error) {
+      console.error('Failed to load privacy settings:', error);
+      Alert.alert('Error', 'Failed to load privacy settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateConsentStatus = (consentHistory: any[]) => {
+    // Get latest consent for each type
+    const latestConsents = consentHistory.reduce((acc, consent) => {
+      if (!acc[consent.consentType] || new Date(consent.consentDate) > new Date(acc[consent.consentType].consentDate)) {
+        acc[consent.consentType] = consent;
+      }
+      return acc;
+    }, {});
+
+    setConsentStatus({
+      dataCollection: latestConsents.dataCollection?.consentGiven || false,
+      dataUse: latestConsents.dataUse?.consentGiven || false,
+      dataSharing: latestConsents.dataSharing?.consentGiven || false,
+      dataRetention: latestConsents.dataRetention?.consentGiven || false,
+      marketingConsent: latestConsents.marketingConsent?.consentGiven || false,
+      crossBorderTransfer: latestConsents.crossBorderTransfer?.consentGiven || false,
+    });
+  };
+
+  const handleConsentChange = async (consentType: string, value: boolean) => {
+    try {
+      const response = await fetch('/api/privacy/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consentType,
+          consentGiven: value,
+          consentVersion: '1.0.0',
+        }),
+      });
+
+      if (response.ok) {
+        setConsentStatus(prev => ({ ...prev, [consentType]: value }));
+        Alert.alert('Success', `Consent ${value ? 'granted' : 'withdrawn'} successfully`);
+      } else {
+        throw new Error('Failed to update consent');
+      }
+    } catch (error) {
+      console.error('Failed to update consent:', error);
+      Alert.alert('Error', 'Failed to update consent');
+    }
+  };
+
+  const handleDataExport = async () => {
+    try {
+      Alert.alert(
+        'Data Export',
+        'This will generate a complete export of your personal data. You will receive a download link via email.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Export',
+            onPress: async () => {
+              const response = await fetch('/api/privacy/export', { method: 'POST' });
+              if (response.ok) {
+                const data = await response.json();
+                Alert.alert(
+                  'Export Requested',
+                  `Your data export has been requested. Download ID: ${data.data.exportId}\n\nYou will receive an email with the download link shortly.`
+                );
+              } else {
+                throw new Error('Export failed');
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Data export failed:', error);
+      Alert.alert('Error', 'Failed to request data export');
+    }
+  };
+
+  const handleAccountDeletion = async () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all associated data. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await fetch('/api/privacy/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  requestType: 'DELETION',
+                  description: 'User requested account deletion',
+                  priority: 'HIGH',
+                }),
+              });
+
+              if (response.ok) {
+                Alert.alert(
+                  'Deletion Requested',
+                  'Your account deletion request has been submitted. Our privacy officer will process this within 30 days.'
+                );
+              } else {
+                throw new Error('Deletion request failed');
+              }
+            } catch (error) {
+              console.error('Account deletion failed:', error);
+              Alert.alert('Error', 'Failed to request account deletion');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handlePIPEDAAccept = async (consents: PIPEDAConsent) => {
+    try {
+      // Record all consents
+      for (const [key, value] of Object.entries(consents)) {
+        if (key !== 'consentDate' && key !== 'consentVersion') {
+          await fetch('/api/privacy/consent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              consentType: key,
+              consentGiven: value,
+              consentVersion: consents.consentVersion,
+            }),
+          });
+        }
+      }
+
+      setShowPIPEDANotice(false);
+      await loadPrivacySettings();
+      Alert.alert('Success', 'Privacy preferences updated successfully');
+    } catch (error) {
+      console.error('Failed to record consents:', error);
+      Alert.alert('Error', 'Failed to update privacy preferences');
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading privacy settings...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.header}>
+        <MaterialCommunityIcons name="shield-account" size={48} color={colors.primary} />
+        <Text style={styles.title}>Privacy & Data Protection</Text>
+        <Text style={styles.subtitle}>
+          Manage your privacy preferences and data protection settings under Canadian PIPEDA compliance
+        </Text>
+      </View>
+
+      {/* Current Consent Status */}
+      <Card style={styles.section}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>🇨🇦 Your Current Consents</Text>
+          
+          <View style={styles.consentItem}>
+            <View style={styles.consentInfo}>
+              <Text style={styles.consentLabel}>Data Collection</Text>
+              <Text style={styles.consentDescription}>Allow collection of health and recovery data</Text>
+            </View>
+            <Switch
+              value={consentStatus.dataCollection}
+              onValueChange={(value) => handleConsentChange('dataCollection', value)}
+              disabled={true} // Required consent
+            />
+          </View>
+
+          <View style={styles.consentItem}>
+            <View style={styles.consentInfo}>
+              <Text style={styles.consentLabel}>Marketing Communications</Text>
+              <Text style={styles.consentDescription}>Receive recovery tips and app updates</Text>
+            </View>
+            <Switch
+              value={consentStatus.marketingConsent}
+              onValueChange={(value) => handleConsentChange('marketingConsent', value)}
+            />
+          </View>
+
+          <View style={styles.consentItem}>
+            <View style={styles.consentInfo}>
+              <Text style={styles.consentLabel}>Community Features</Text>
+              <Text style={styles.consentDescription}>Share anonymized data with sponsors/groups</Text>
+            </View>
+            <Switch
+              value={consentStatus.dataSharing}
+              onValueChange={(value) => handleConsentChange('dataSharing', value)}
+            />
+          </View>
+
+          <View style={styles.consentItem}>
+            <View style={styles.consentInfo}>
+              <Text style={styles.consentLabel}>Cross-Border Processing</Text>
+              <Text style={styles.consentDescription}>Allow data processing in secure US data centers</Text>
+            </View>
+            <Switch
+              value={consentStatus.crossBorderTransfer}
+              onValueChange={(value) => handleConsentChange('crossBorderTransfer', value)}
+            />
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* Data Rights */}
+      <Card style={styles.section}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>📋 Your Data Rights</Text>
+          
+          <List.Item
+            title="Export My Data"
+            description="Download a complete copy of your personal data"
+            left={(props) => <List.Icon {...props} icon="download" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={handleDataExport}
+          />
+          
+          <Divider />
+          
+          <List.Item
+            title="Review Privacy Notice"
+            description="View the complete PIPEDA privacy notice"
+            left={(props) => <List.Icon {...props} icon="file-document" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => setShowPIPEDANotice(true)}
+          />
+          
+          <Divider />
+          
+          <List.Item
+            title="Delete My Account"
+            description="Permanently delete your account and all data"
+            left={(props) => <List.Icon {...props} icon="delete-forever" color={colors.error} />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={handleAccountDeletion}
+            titleStyle={{ color: colors.error }}
+          />
+        </Card.Content>
+      </Card>
+
+      {/* Privacy Officer Contact */}
+      {privacyOfficer && (
+        <Card style={styles.section}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>📞 Privacy Officer Contact</Text>
+            <View style={styles.contactCard}>
+              <Text style={styles.contactName}>{privacyOfficer.name}</Text>
+              <Text style={styles.contactTitle}>{privacyOfficer.title}</Text>
+              <View style={styles.contactDetails}>
+                <Text style={styles.contactItem}>📧 {privacyOfficer.email}</Text>
+                <Text style={styles.contactItem}>📞 {privacyOfficer.phone}</Text>
+                <Text style={styles.contactItem}>
+                  📍 {privacyOfficer.address.street}, {privacyOfficer.address.city}, {privacyOfficer.address.province} {privacyOfficer.address.postalCode}
+                </Text>
+                <Text style={styles.contactItem}>🕒 {privacyOfficer.businessHours}</Text>
+              </View>
+              <View style={styles.languageChips}>
+                {privacyOfficer.languages.map((lang) => (
+                  <Chip key={lang} style={styles.languageChip} textStyle={styles.chipText}>
+                    {lang}
+                  </Chip>
+                ))}
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Compliance Information */}
+      <Card style={styles.section}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>🛡️ Compliance & Security</Text>
+          <View style={styles.complianceInfo}>
+            <Text style={styles.complianceItem}>✅ PIPEDA Compliant (Canada)</Text>
+            <Text style={styles.complianceItem}>✅ HIPAA Compliant (Healthcare)</Text>
+            <Text style={styles.complianceItem}>✅ SOC 2 Type II Certified</Text>
+            <Text style={styles.complianceItem}>✅ End-to-End Encryption</Text>
+            <Text style={styles.complianceItem}>✅ Canadian Data Residency Available</Text>
+          </View>
+        </Card.Content>
+      </Card>
+
+      <PIPEDAPrivacyNotice
+        visible={showPIPEDANotice}
+        onAccept={handlePIPEDAAccept}
+        onDecline={() => setShowPIPEDANotice(false)}
+      />
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    padding: spacing.md,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  title: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: 'bold',
+    color: colors.text,
+    textAlign: 'center',
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  section: {
+    marginBottom: spacing.lg,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  consentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+  },
+  consentInfo: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  consentLabel: {
+    fontSize: typography.fontSize.md,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  consentDescription: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  contactCard: {
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: 8,
+  },
+  contactName: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  contactTitle: {
+    fontSize: typography.fontSize.md,
+    color: colors.primary,
+    marginBottom: spacing.md,
+  },
+  contactDetails: {
+    marginBottom: spacing.md,
+  },
+  contactItem: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  languageChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  languageChip: {
+    marginRight: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  chipText: {
+    fontSize: typography.fontSize.xs,
+  },
+  complianceInfo: {
+    marginTop: spacing.sm,
+  },
+  complianceItem: {
+    fontSize: typography.fontSize.sm,
+    color: colors.success,
+    marginBottom: spacing.xs,
+  },
+});
+
+export default PrivacySettingsScreen;

@@ -1,0 +1,17 @@
+﻿# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Build outputs  
+build/
+dist/
+.next/
+
+# Environment files
+.env.local
+.env.*
+
+# Backup files
+ecosystem-backup-*/
+*.migration-backup

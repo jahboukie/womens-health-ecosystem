@@ -1,0 +1,384 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Alert} from 'react-native';
+import {
+  Text,
+  Card,
+  Button,
+  Avatar,
+  Badge,
+  Divider} from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { colors, spacing, typography } from '../../constants/theme';
+import { CommunityStackParamList } from '../../navigation/CommunityNavigator';
+import { communityService } from '../../services/communityService';
+type NavigationProp = StackNavigationProp<CommunityStackParamList, 'CommunityHome'>;
+interface CommunityStats {
+  sponsorRelationships: number;
+  activeGroups: number;
+  unreadMessages: number;
+  communityPoints: number;
+}
+interface RecentActivity {
+  id: string;
+  type: 'message' | 'milestone' | 'group_join' | 'sponsor_match';
+  title: string;
+  description: string;
+  timestamp: string;
+  icon: string;
+  color: string;
+}
+const CommunityHomeScreen: React.FC = () => {
+  const navigation = useNavigation<NavigationProp>();
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<CommunityStats>({
+    sponsorRelationships: 0,
+    activeGroups: 0,
+    unreadMessages: 0,
+    communityPoints: 0});
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  useEffect(() => {
+    loadCommunityData();
+  }, []);
+  const loadCommunityData = async () => {
+    try {
+      setLoading(true);
+      // Load community stats and recent activity
+      const [statsData, activityData] = await Promise.all([
+        communityService.getCommunityStats(),
+        communityService.getRecentActivity(),
+      ]);
+      setStats(statsData);
+      setRecentActivity(activityData);
+    } catch (error) {
+      console.error('Failed to load community data:', error);
+      Alert.alert('Error', 'Failed to load community data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadCommunityData();
+    setRefreshing(false);
+  };
+  const renderQuickAction = (
+    title: string,
+    subtitle: string,
+    icon: string,
+    color: string,
+    onPress: () => void,
+    badge?: number
+  ) => (
+    <TouchableOpacity style={styles.quickActionCard} onPress={onPress}>
+      <View style={styles.quickActionContent}>
+        <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
+          <MaterialCommunityIcons name={icon as any} size={24} color={colors.white} />
+          {badge && badge > 0 && (
+            <View style={styles.quickActionBadge}>
+              <Text style={styles.badgeText}>
+                {badge > 99 ? '99+' : badge.toString()}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.quickActionText}>
+          <Text style={styles.quickActionTitle}>{title}</Text>
+          <Text style={styles.quickActionSubtitle}>{subtitle}</Text>
+        </View>
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={20}
+          color={colors.textSecondary}
+        />
+      </View>
+    </TouchableOpacity>
+  );
+  const renderActivityItem = (activity: RecentActivity) => (
+    <View key={activity.id} style={styles.activityItem}>
+      <View style={[styles.activityIcon, { backgroundColor: activity.color }]}>
+        <MaterialCommunityIcons
+          name={activity.icon as any}
+          size={16}
+          color={colors.white}
+        />
+      </View>
+      <View style={styles.activityContent}>
+        <Text style={styles.activityTitle}>{activity.title}</Text>
+        <Text style={styles.activityDescription}>{activity.description}</Text>
+        <Text style={styles.activityTime}>{activity.timestamp}</Text>
+      </View>
+    </View>
+  );
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      {/* Welcome Section */}
+      <Card style={styles.welcomeCard}>
+        <Card.Content>
+          <View style={styles.welcomeHeader}>
+            <MaterialCommunityIcons
+              name="account-group"
+              size={32}
+              color={colors.primary}
+            />
+            <View style={styles.welcomeText}>
+              <Text style={styles.welcomeTitle}>Welcome to Community</Text>
+              <Text style={styles.welcomeSubtitle}>
+                Connect with sponsors and peers on your recovery journey
+              </Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+      {/* Community Stats */}
+      <Card style={styles.statsCard}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>Your Community</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{stats.sponsorRelationships}</Text>
+              <Text style={styles.statLabel}>Sponsors</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{stats.activeGroups}</Text>
+              <Text style={styles.statLabel}>Groups</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{stats.unreadMessages}</Text>
+              <Text style={styles.statLabel}>Messages</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{stats.communityPoints}</Text>
+              <Text style={styles.statLabel}>Points</Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+      {/* Quick Actions */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        {renderQuickAction(
+          'Find a Sponsor',
+          'Connect with verified sponsors',
+          'account-star',
+          colors.primary,
+          () => navigation.navigate('SponsorList')
+        )}
+        {renderQuickAction(
+          'Messages',
+          'Chat with sponsors and peers',
+          'message-text',
+          colors.secondary,
+          () => navigation.navigate('Messaging'),
+          stats.unreadMessages
+        )}
+        {renderQuickAction(
+          'Support Groups',
+          'Join topic-based groups',
+          'account-group',
+          colors.accent,
+          () => navigation.navigate('GroupList')
+        )}
+      </View>
+      {/* Recent Activity */}
+      {recentActivity.length > 0 && (
+        <Card style={styles.activityCard}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <View style={styles.activityList}>
+              {recentActivity.slice(0, 5).map(renderActivityItem)}
+            </View>
+            {recentActivity.length > 5 && (
+              <Button
+                mode="text"
+                onPress={() => {/* Navigate to full activity */}}
+                style={styles.viewAllButton}
+              >
+                View All Activity
+              </Button>
+            )}
+          </Card.Content>
+        </Card>
+      )}
+      {/* Safety Notice */}
+      <Card style={styles.safetyCard}>
+        <Card.Content>
+          <View style={styles.safetyHeader}>
+            <MaterialCommunityIcons
+              name="shield-check"
+              size={24}
+              color={colors.success}
+            />
+            <Text style={styles.safetyTitle}>Community Guidelines</Text>
+          </View>
+          <Text style={styles.safetyText}>
+            Our community is a safe space for recovery support. All sponsors are verified,
+            and conversations are monitored for safety. Report any inappropriate behavior.
+          </Text>
+          <Button
+            mode="outlined"
+            onPress={() => {/* Navigate to guidelines */}}
+            style={styles.guidelinesButton}
+          >
+            Read Guidelines
+          </Button>
+        </Card.Content>
+      </Card>
+    </ScrollView>
+  );
+};
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background},
+  content: {
+    padding: spacing.md},
+  welcomeCard: {
+    marginBottom: spacing.md,
+    elevation: 2},
+  welcomeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center'},
+  welcomeText: {
+    marginLeft: spacing.md,
+    flex: 1},
+  welcomeTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.xs},
+  welcomeSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary},
+  statsCard: {
+    marginBottom: spacing.md,
+    elevation: 2},
+  sectionTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.md},
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around'},
+  statItem: {
+    alignItems: 'center'},
+  statNumber: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: spacing.xs},
+  statLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary},
+  section: {
+    marginBottom: spacing.md},
+  quickActionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    marginBottom: spacing.sm,
+    elevation: 1},
+  quickActionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md},
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative'},
+  quickActionBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.error,
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center'},
+  badgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: 'bold'},
+  quickActionText: {
+    flex: 1,
+    marginLeft: spacing.md},
+  quickActionTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs},
+  quickActionSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary},
+  activityCard: {
+    marginBottom: spacing.md,
+    elevation: 2},
+  activityList: {
+    marginTop: spacing.sm},
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md},
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.sm},
+  activityContent: {
+    flex: 1},
+  activityTitle: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs},
+  activityDescription: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs},
+  activityTime: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary},
+  viewAllButton: {
+    marginTop: spacing.sm},
+  safetyCard: {
+    marginBottom: spacing.lg,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.success},
+  safetyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm},
+  safetyTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: '600',
+    color: colors.text,
+    marginLeft: spacing.sm},
+  safetyText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.md},
+  guidelinesButton: {
+    alignSelf: 'flex-start'}});
+export default CommunityHomeScreen;

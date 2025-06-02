@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "SoberPal",
+    "slug": "soberpal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a365d"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.soberpal.app",
+      "buildNumber": "1.0.0",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "SoberPal uses Face ID for secure authentication to protect your recovery data.",
+        "NSCameraUsageDescription": "SoberPal uses camera for profile photos and progress tracking.",
+        "NSMicrophoneUsageDescription": "SoberPal uses microphone for voice notes and crisis support calls."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a365d"
+      },
+      "package": "com.soberpal.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "USE_FINGERPRINT",
+        "USE_BIOMETRIC",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [],
+    "extra": {
+      "eas": {
+        "projectId": "soberpal-mobile-app"
+      },
+      "apiUrl": "http://localhost:3000/api",
+      "apiUrlProduction": "https://api.soberpal.health/api"
+    },
+    "owner": "soberpal-team"
+  }
+}

@@ -1,0 +1,41 @@
+﻿name: Mobile Apps CI/CD
+
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - 'shared/**'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'shared/**'
+
+jobs:
+  mobile-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+          
+      - name: Install dependencies
+        run: |
+          cd mobile
+          npm ci
+          
+      - name: Run tests
+        run: |
+          cd mobile
+          npm test
+          
+      - name: Build
+        run: |
+          cd mobile
+          npm run build

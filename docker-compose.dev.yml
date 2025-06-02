@@ -1,0 +1,41 @@
+﻿version: '3.8'
+
+services:
+  mobile-dev:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/mobile.Dockerfile
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+    volumes:
+      - ./mobile:/app/mobile
+      - ./shared:/app/shared
+    environment:
+      - NODE_ENV=development
+
+  web-dev:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app/web
+      - ./shared:/app/shared
+    environment:
+      - NODE_ENV=development
+      
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: womens_health_ecosystem
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

@@ -1,0 +1,44 @@
+# Shared AI Services - Environment Variables & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging
+.env.production
+
+# API Keys - CRITICAL SECURITY - NEVER COMMIT THESE!
+CLAUDE_API_KEY*
+claude-api-key*
+OPENAI_API_KEY*
+openai-api-key*
+DR_ALEX_CLAUDE_API_KEY*
+MY_CONFIDANT_CLAUDE_API_KEY*
+INNER_ARCHITECT_CLAUDE_API_KEY*
+SOBER_PAL_CLAUDE_API_KEY*
+MENO_TRACKER_CLAUDE_API_KEY*
+MENO_PARTNER_CLAUDE_API_KEY*
+MENO_COMMUNITY_CLAUDE_API_KEY*
+api-keys*
+*api-key*
+*secret*
+
+# AI Model files
+*.model
+*.weights
+*.checkpoint
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

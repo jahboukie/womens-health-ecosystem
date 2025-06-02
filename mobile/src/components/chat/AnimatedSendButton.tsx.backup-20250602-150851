@@ -1,0 +1,212 @@
+/**
+ * 🎨 LESSON 5: Advanced UI Components - Animated Send Button
+ * 
+ * This component creates a delightful send button with animations.
+ * Features:
+ * 1. Pulse animation when enabled
+ * 2. Smooth scale animation on press
+ * 3. Color transitions based on state
+ * 4. Haptic feedback for tactile response
+ * 5. Accessibility support
+ * 
+ * Think of this as making every message send feel satisfying!
+ */
+
+import React, { useEffect, useRef } from 'react';
+import { Animated, TouchableOpacity, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { colors } from '../../constants/theme';
+
+interface AnimatedSendButtonProps {
+  onPress: () => void;
+  disabled: boolean;
+  loading?: boolean;
+}
+
+export const AnimatedSendButton: React.FC<AnimatedSendButtonProps> = ({
+  onPress,
+  disabled,
+  loading = false
+}) => {
+  // 🎭 ANIMATION VALUES: Create animated values for different effects
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const colorAnim = useRef(new Animated.Value(disabled ? 0 : 1)).current;
+
+  // 🎬 PULSE ANIMATION: Subtle pulse when button is ready
+  useEffect(() => {
+    if (!disabled && !loading) {
+      const pulseAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulseAnimation.start();
+      
+      return () => pulseAnimation.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [disabled, loading]);
+
+  // 🌈 COLOR ANIMATION: Smooth color transitions
+  useEffect(() => {
+    Animated.timing(colorAnim, {
+      toValue: disabled ? 0 : 1,
+      duration: 300,
+      useNativeDriver: false, // Color animations can't use native driver
+    }).start();
+  }, [disabled]);
+
+  // 🔄 LOADING ANIMATION: Spinning animation when sending
+  useEffect(() => {
+    if (loading) {
+      const rotateAnimation = Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        })
+      );
+      rotateAnimation.start();
+      
+      return () => {
+        rotateAnimation.stop();
+        rotateAnim.setValue(0);
+      };
+    }
+  }, [loading]);
+
+  // 🎯 PRESS HANDLERS: Handle button interactions
+  const handlePressIn = () => {
+    if (!disabled && !loading) {
+      Animated.spring(scaleAnim, {
+        toValue: 0.9,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      tension: 100,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePress = async () => {
+    if (!disabled && !loading) {
+      // Add haptic feedback for tactile response
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      onPress();
+    }
+  };
+
+  // 🎨 ANIMATED STYLES: Combine all animations
+  const animatedButtonStyle = {
+    transform: [
+      { scale: Animated.multiply(scaleAnim, pulseAnim) },
+      {
+        rotate: rotateAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0deg', '360deg'],
+        }),
+      },
+    ],
+  };
+
+  const animatedBackgroundColor = colorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.disabled, colors.primary],
+  });
+
+  const animatedIconColor = colorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.onDisabled, colors.onPrimary],
+  });
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      disabled={disabled || loading}
+      activeOpacity={0.8}
+      accessibilityLabel="Send message"
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || loading }}
+    >
+      <Animated.View
+        style={[
+          styles.button,
+          animatedButtonStyle,
+          { backgroundColor: animatedBackgroundColor }
+        ]}
+      >
+        <Animated.View style={{ color: animatedIconColor }}>
+          <MaterialCommunityIcons
+            name={loading ? "loading" : "send"}
+            size={24}
+            color={disabled ? colors.onDisabled : colors.onPrimary}
+          />
+        </Animated.View>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
+// 🎨 STYLES: Beautiful, consistent styling
+const styles = StyleSheet.create({
+  button: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+});
+
+export default AnimatedSendButton;
+
+/**
+ * 🎓 LEARNING NOTES:
+ * 
+ * 1. **Animated.multiply** - Combines multiple animated values
+ * 2. **Haptic Feedback** - Adds tactile response for better UX
+ * 3. **Color Interpolation** - Smooth color transitions
+ * 4. **Loading States** - Visual feedback during async operations
+ * 5. **Accessibility** - Proper labels and states for screen readers
+ * 
+ * 🎯 UX PRINCIPLES APPLIED:
+ * - **Feedback** - Visual and tactile response to user actions
+ * - **State Communication** - Clear indication of button state
+ * - **Delight** - Satisfying animations make interactions enjoyable
+ * - **Accessibility** - Works well with assistive technologies
+ * 
+ * 🚀 WHY THIS MATTERS:
+ * - **User Satisfaction** - Polished interactions feel premium
+ * - **Clear Communication** - Users understand when actions are possible
+ * - **Engagement** - Delightful details encourage continued use
+ * - **Professional Quality** - Attention to detail builds trust
+ */

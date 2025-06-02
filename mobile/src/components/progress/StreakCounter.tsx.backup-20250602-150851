@@ -1,0 +1,398 @@
+/**
+ * 🔥 ANIMATED STREAK COUNTER
+ * 
+ * This component creates a beautiful, motivating streak counter:
+ * 1. Animated number counting up
+ * 2. Fire effects for active streaks
+ * 3. Milestone celebrations
+ * 4. Progress ring animation
+ * 5. Encouraging messages
+ * 
+ * Think of this as the heart of motivation - every day counts!
+ */
+
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import { Text, Card, Button } from 'react-native-paper';
+import { colors, spacing, typography } from '../../constants/theme';
+
+interface StreakCounterProps {
+  currentStreak: number;
+  longestStreak: number;
+  sobrietyStartDate: Date;
+  onCheckIn?: () => void;
+  showCheckInButton?: boolean;
+}
+
+export const StreakCounter: React.FC<StreakCounterProps> = ({
+  currentStreak,
+  longestStreak,
+  sobrietyStartDate,
+  onCheckIn,
+  showCheckInButton = true,
+}) => {
+  // 🎭 ANIMATION VALUES
+  const countAnimation = useRef(new Animated.Value(0)).current;
+  const pulseAnimation = useRef(new Animated.Value(1)).current;
+  const fireAnimation = useRef(new Animated.Value(0)).current;
+  const ringAnimation = useRef(new Animated.Value(0)).current;
+
+  // 📊 STATE
+  const [displayCount, setDisplayCount] = useState(0);
+  const [isNewRecord, setIsNewRecord] = useState(false);
+
+  // 🎯 MILESTONE THRESHOLDS
+  const milestones = [1, 7, 30, 60, 90, 180, 365, 730, 1095]; // Days
+  const nextMilestone = milestones.find(m => m > currentStreak) || currentStreak + 365;
+  const progressToNext = currentStreak / nextMilestone;
+
+  // 🔥 FIRE EFFECTS FOR DIFFERENT STREAK LEVELS
+  const getFireIntensity = (streak: number): string => {
+    if (streak >= 365) return '🔥🔥🔥🔥🔥'; // 1+ year
+    if (streak >= 180) return '🔥🔥🔥🔥';   // 6+ months
+    if (streak >= 90) return '🔥🔥🔥';      // 3+ months
+    if (streak >= 30) return '🔥🔥';       // 1+ month
+    if (streak >= 7) return '🔥';          // 1+ week
+    return '✨';                           // Starting out
+  };
+
+  // 🎨 MOTIVATIONAL MESSAGES
+  const getMotivationalMessage = (streak: number): string => {
+    if (streak === 0) return "Today is day one. You've got this! 💪";
+    if (streak === 1) return "One day strong! Every journey begins with a single step 🌟";
+    if (streak < 7) return `${streak} days of strength! Keep building momentum 🚀`;
+    if (streak < 30) return `${streak} days of courage! You're building something amazing 🌱`;
+    if (streak < 90) return `${streak} days of transformation! Your dedication is inspiring 🦋`;
+    if (streak < 365) return `${streak} days of resilience! You're proving your strength every day 💎`;
+    return `${streak} days of triumph! You're a true inspiration 👑`;
+  };
+
+  // 🎬 ANIMATIONS
+  useEffect(() => {
+    // Check if this is a new record
+    setIsNewRecord(currentStreak > longestStreak);
+
+    // Animate count up
+    Animated.timing(countAnimation, {
+      toValue: currentStreak,
+      duration: 2000,
+      useNativeDriver: false,
+    }).start();
+
+    // Pulse animation for active streaks
+    if (currentStreak > 0) {
+      const pulseSequence = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnimation, {
+            toValue: 1.1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnimation, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulseSequence.start();
+    }
+
+    // Fire animation
+    const fireSequence = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fireAnimation, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fireAnimation, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    fireSequence.start();
+
+    // Progress ring animation
+    Animated.timing(ringAnimation, {
+      toValue: progressToNext,
+      duration: 2500,
+      useNativeDriver: false,
+    }).start();
+
+  }, [currentStreak]);
+
+  // 🔢 ANIMATED COUNTER
+  useEffect(() => {
+    const listener = countAnimation.addListener(({ value }) => {
+      setDisplayCount(Math.floor(value));
+    });
+
+    return () => countAnimation.removeListener(listener);
+  }, []);
+
+  // 🎨 DYNAMIC STYLES
+  const getStreakColor = (streak: number): string => {
+    if (streak >= 365) return '#FFD700'; // Gold
+    if (streak >= 180) return '#FF6B6B'; // Red
+    if (streak >= 90) return '#4ECDC4';  // Teal
+    if (streak >= 30) return '#45B7D1';  // Blue
+    if (streak >= 7) return '#96CEB4';   // Green
+    return colors.primary;               // Default
+  };
+
+  const streakColor = getStreakColor(currentStreak);
+
+  return (
+    <Card style={styles.container}>
+      <View style={styles.content}>
+        {/* 🔥 FIRE EFFECTS */}
+        <Animated.View 
+          style={[
+            styles.fireContainer,
+            {
+              opacity: fireAnimation,
+              transform: [{ scale: pulseAnimation }],
+            }
+          ]}
+        >
+          <Text style={styles.fireText}>{getFireIntensity(currentStreak)}</Text>
+        </Animated.View>
+
+        {/* 📊 MAIN COUNTER */}
+        <View style={styles.counterContainer}>
+          <Animated.Text 
+            style={[
+              styles.streakNumber,
+              { 
+                color: streakColor,
+                transform: [{ scale: pulseAnimation }],
+              }
+            ]}
+          >
+            {displayCount}
+          </Animated.Text>
+          <Text style={styles.streakLabel}>
+            {currentStreak === 1 ? 'Day' : 'Days'} Sober
+          </Text>
+        </View>
+
+        {/* 🏆 NEW RECORD BADGE */}
+        {isNewRecord && currentStreak > 1 && (
+          <View style={styles.recordBadge}>
+            <Text style={styles.recordText}>🏆 New Record!</Text>
+          </View>
+        )}
+
+        {/* 📈 PROGRESS TO NEXT MILESTONE */}
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressLabel}>
+            Next milestone: {nextMilestone} days
+          </Text>
+          <View style={styles.progressBar}>
+            <Animated.View 
+              style={[
+                styles.progressFill,
+                {
+                  width: ringAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%'],
+                  }),
+                  backgroundColor: streakColor,
+                }
+              ]}
+            />
+          </View>
+          <Text style={styles.progressText}>
+            {Math.round(progressToNext * 100)}% complete
+          </Text>
+        </View>
+
+        {/* 💬 MOTIVATIONAL MESSAGE */}
+        <View style={styles.messageContainer}>
+          <Text style={styles.motivationalMessage}>
+            {getMotivationalMessage(currentStreak)}
+          </Text>
+        </View>
+
+        {/* 📊 STATS ROW */}
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{longestStreak}</Text>
+            <Text style={styles.statLabel}>Best Streak</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>
+              {Math.floor((Date.now() - sobrietyStartDate.getTime()) / (1000 * 60 * 60 * 24))}
+            </Text>
+            <Text style={styles.statLabel}>Total Days</Text>
+          </View>
+        </View>
+
+        {/* ✅ CHECK-IN BUTTON */}
+        {showCheckInButton && (
+          <Button
+            mode="contained"
+            onPress={onCheckIn}
+            style={[styles.checkInButton, { backgroundColor: streakColor }]}
+            labelStyle={styles.checkInButtonText}
+          >
+            Daily Check-In ✨
+          </Button>
+        )}
+      </View>
+    </Card>
+  );
+};
+
+// 🎨 STYLES
+const { width } = Dimensions.get('window');
+
+const styles = StyleSheet.create({
+  container: {
+    margin: spacing.md,
+    elevation: 4,
+    borderRadius: 16,
+  },
+  content: {
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
+  fireContainer: {
+    marginBottom: spacing.sm,
+  },
+  fireText: {
+    fontSize: 32,
+    textAlign: 'center',
+  },
+  counterContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  streakNumber: {
+    fontSize: 64,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  streakLabel: {
+    ...typography.headline6,
+    color: colors.onSurface,
+    opacity: 0.7,
+    marginTop: spacing.xs,
+  },
+  recordBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+    marginBottom: spacing.md,
+  },
+  recordText: {
+    color: '#000',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  progressContainer: {
+    width: '100%',
+    marginBottom: spacing.lg,
+  },
+  progressLabel: {
+    ...typography.body2,
+    color: colors.onSurface,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: colors.surface,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: spacing.xs,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    ...typography.caption,
+    color: colors.onSurface,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  messageContainer: {
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
+  },
+  motivationalMessage: {
+    ...typography.body1,
+    color: colors.onSurface,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    width: '100%',
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    ...typography.headline5,
+    color: colors.primary,
+    fontWeight: 'bold',
+  },
+  statLabel: {
+    ...typography.caption,
+    color: colors.onSurface,
+    opacity: 0.7,
+    marginTop: spacing.xs,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.onSurface,
+    opacity: 0.2,
+    marginHorizontal: spacing.md,
+  },
+  checkInButton: {
+    width: '100%',
+    borderRadius: 25,
+    paddingVertical: spacing.xs,
+  },
+  checkInButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+});
+
+export default StreakCounter;
+
+/**
+ * 🎓 STREAK COUNTER FEATURES:
+ * 
+ * 1. **Animated Counting** - Numbers count up smoothly for satisfaction
+ * 2. **Fire Effects** - Visual intensity increases with streak length
+ * 3. **Milestone Progress** - Shows progress to next achievement
+ * 4. **Motivational Messages** - Encouraging words for every stage
+ * 5. **New Record Celebration** - Special recognition for personal bests
+ * 
+ * 🎨 VISUAL PSYCHOLOGY:
+ * - Large numbers create sense of accomplishment
+ * - Fire effects add excitement and energy
+ * - Progress bars provide clear goals
+ * - Color changes mark different achievement levels
+ * - Animations make interactions feel rewarding
+ * 
+ * 🏥 THERAPEUTIC VALUE:
+ * - Visual progress builds motivation and confidence
+ * - Daily check-ins create positive habits
+ * - Milestone tracking provides achievable goals
+ * - Celebration of achievements builds self-esteem
+ * - Consistent visual feedback reinforces recovery commitment
+ */

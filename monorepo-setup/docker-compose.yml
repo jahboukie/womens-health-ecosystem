@@ -1,0 +1,245 @@
+# 🌸 Women's Health Ecosystem - Docker Compose Configuration
+# Complete development environment with all services
+
+version: '3.8'
+
+services:
+  # 🗄️ PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: womens-health-postgres
+    environment:
+      POSTGRES_DB: womens_health_ecosystem
+      POSTGRES_USER: womens_health_user
+      POSTGRES_PASSWORD: secure_password_2024
+      POSTGRES_MULTIPLE_DATABASES: menotracker_dev,menopartner_dev,menocommunity_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - womens-health-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U womens_health_user -d womens_health_ecosystem"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 🔴 Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: womens-health-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - womens-health-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 📱 MenoTracker Backend
+  menotracker-backend:
+    build:
+      context: ./platforms/meno-tracker/backend
+      dockerfile: Dockerfile
+    container_name: menotracker-backend
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://womens_health_user:secure_password_2024@postgres:5432/menotracker_dev
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+      - JWT_SECRET=dev_jwt_secret_menotracker_2024
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - CORS_ORIGIN=http://localhost:19006
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./platforms/meno-tracker/backend:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - womens-health-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # 💕 MenoPartner Backend (Future)
+  menopartner-backend:
+    build:
+      context: ./platforms/meno-partner/backend
+      dockerfile: Dockerfile
+    container_name: menopartner-backend
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://womens_health_user:secure_password_2024@postgres:5432/menopartner_dev
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+      - JWT_SECRET=dev_jwt_secret_menopartner_2024
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - CORS_ORIGIN=http://localhost:19007
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./platforms/meno-partner/backend:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - womens-health-network
+    profiles:
+      - menopartner
+    restart: unless-stopped
+
+  # 🌍 MenoCommunity Backend (Future)
+  menocommunity-backend:
+    build:
+      context: ./platforms/meno-community/backend
+      dockerfile: Dockerfile
+    container_name: menocommunity-backend
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://womens_health_user:secure_password_2024@postgres:5432/menocommunity_dev
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+      - JWT_SECRET=dev_jwt_secret_menocommunity_2024
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - CORS_ORIGIN=http://localhost:19008
+    ports:
+      - "3003:3000"
+    volumes:
+      - ./platforms/meno-community/backend:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - womens-health-network
+    profiles:
+      - menocommunity
+    restart: unless-stopped
+
+  # 📊 pgAdmin (Database Management)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: womens-health-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@womenshealthecosystem.com
+      PGADMIN_DEFAULT_PASSWORD: admin_password_2024
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - womens-health-network
+    profiles:
+      - tools
+
+  # 📈 Redis Commander (Redis Management)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: womens-health-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - womens-health-network
+    profiles:
+      - tools
+
+  # 🔍 Elasticsearch (Future - for advanced analytics)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: womens-health-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - womens-health-network
+    profiles:
+      - analytics
+
+  # 📊 Kibana (Future - for analytics dashboard)
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: womens-health-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - womens-health-network
+    profiles:
+      - analytics
+
+# 🌐 Networks
+networks:
+  womens-health-network:
+    driver: bridge
+    name: womens-health-ecosystem
+
+# 💾 Volumes
+volumes:
+  postgres_data:
+    name: womens-health-postgres-data
+  redis_data:
+    name: womens-health-redis-data
+  pgadmin_data:
+    name: womens-health-pgadmin-data
+  elasticsearch_data:
+    name: womens-health-elasticsearch-data
+
+# 🚀 Usage Examples:
+#
+# Start core services (MenoTracker only):
+#   docker-compose up -d
+#
+# Start with database management tools:
+#   docker-compose --profile tools up -d
+#
+# Start with analytics stack:
+#   docker-compose --profile analytics up -d
+#
+# Start MenoPartner services:
+#   docker-compose --profile menopartner up -d
+#
+# Start everything:
+#   docker-compose --profile tools --profile analytics --profile menopartner --profile menocommunity up -d
+#
+# View logs:
+#   docker-compose logs -f menotracker-backend
+#
+# Stop all services:
+#   docker-compose down
+#
+# Reset all data:
+#   docker-compose down -v

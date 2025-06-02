@@ -1,0 +1,196 @@
+/**
+ * 🎨 LESSON 5: Advanced UI Components - Typing Indicator
+ * 
+ * This component creates a beautiful typing indicator that shows when Claude is responding.
+ * It includes:
+ * 1. Animated dots that pulse in sequence
+ * 2. Smooth fade in/out animations
+ * 3. Consistent styling with our chat theme
+ * 4. Accessibility support
+ * 
+ * Think of this as adding "life" to our chat interface!
+ */
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Animated } from 'react-native';
+import { Text } from 'react-native-paper';
+import { colors, spacing, typography } from '../../constants/theme';
+interface TypingIndicatorProps {
+  visible: boolean;
+  senderName?: string;
+}
+export const TypingIndicator: React.FC<TypingIndicatorProps> = ({
+  visible,
+  senderName = 'SoberPal'
+}) => {
+  // 🎭 ANIMATION SETUP: Create animated values for each dot
+  const dot1Opacity = useRef(new Animated.Value(0.3)).current;
+  const dot2Opacity = useRef(new Animated.Value(0.3)).current;
+  const dot3Opacity = useRef(new Animated.Value(0.3)).current;
+  const containerOpacity = useRef(new Animated.Value(0)).current;
+  // 🎬 ANIMATION SEQUENCE: Create pulsing dots effect
+  const createDotAnimation = (dotOpacity: Animated.Value, delay: number) => {
+    return Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotOpacity, {
+          toValue: 1,
+          duration: 600,
+          delay,
+          useNativeDriver: true}),
+        Animated.timing(dotOpacity, {
+          toValue: 0.3,
+          duration: 600,
+          useNativeDriver: true}),
+      ])
+    );
+  };
+  // 🎯 CONTAINER ANIMATION: Smooth fade in/out
+  const createContainerAnimation = (toValue: number) => {
+    return Animated.timing(containerOpacity, {
+      toValue,
+      duration: 300,
+      useNativeDriver: true});
+  };
+  // 🔄 EFFECT: Start/stop animations based on visibility
+  useEffect(() => {
+    if (visible) {
+      // Fade in the container
+      createContainerAnimation(1).start();
+      // Start the dot animations with staggered delays
+      const dot1Anim = createDotAnimation(dot1Opacity, 0);
+      const dot2Anim = createDotAnimation(dot2Opacity, 200);
+      const dot3Anim = createDotAnimation(dot3Opacity, 400);
+      dot1Anim.start();
+      dot2Anim.start();
+      dot3Anim.start();
+      // Return cleanup function
+      return () => {
+        dot1Anim.stop();
+        dot2Anim.stop();
+        dot3Anim.stop();
+      };
+    } else {
+      // Fade out the container
+      createContainerAnimation(0).start();
+    }
+  }, [visible]);
+  // 🎨 RENDER: Don't render anything if not visible
+  if (!visible) {
+    return null;
+  }
+  return (
+    <Animated.View 
+      style={[
+        styles.container,
+        { opacity: containerOpacity }
+      ]}
+      accessibilityLabel={`${senderName} is typing`}
+      accessibilityRole="text"
+    >
+      <View style={styles.messageContainer}>
+        <View style={styles.avatarContainer}>
+          <Text style={styles.avatarText}>🤖</Text>
+        </View>
+        <View style={styles.bubbleContainer}>
+          <View style={styles.bubble}>
+            <Text style={styles.typingText}>{senderName} is typing</Text>
+            <View style={styles.dotsContainer}>
+              <Animated.View 
+                style={[
+                  styles.dot,
+                  { opacity: dot1Opacity }
+                ]} 
+              />
+              <Animated.View 
+                style={[
+                  styles.dot,
+                  { opacity: dot2Opacity }
+                ]} 
+              />
+              <Animated.View 
+                style={[
+                  styles.dot,
+                  { opacity: dot3Opacity }
+                ]} 
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  );
+};
+// 🎨 STYLES: Beautiful, consistent styling
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs},
+  messageContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start'},
+  avatarContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.sm},
+  avatarText: {
+    fontSize: 16},
+  bubbleContainer: {
+    flex: 1,
+    alignItems: 'flex-start'},
+  bubble: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    maxWidth: '80%',
+    elevation: 1,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 1},
+    shadowOpacity: 0.1,
+    shadowRadius: 2},
+  typingText: {
+    ...typography.body,
+    color: colors.onSurface,
+    fontSize: 14,
+    marginBottom: spacing.xs,
+    opacity: 0.7},
+  dotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 20},
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginHorizontal: 2}});
+export default TypingIndicator;
+/**
+ * 🎓 LEARNING NOTES:
+ * 
+ * 1. **Animated.Value** - Creates animatable values for smooth transitions
+ * 2. **Animated.loop** - Repeats animations continuously
+ * 3. **Animated.sequence** - Chains animations together
+ * 4. **useNativeDriver** - Runs animations on native thread for better performance
+ * 5. **Staggered delays** - Creates wave-like effect across dots
+ * 
+ * 🎯 UX PRINCIPLES APPLIED:
+ * - **Feedback** - Users know the system is working
+ * - **Personality** - Makes the AI feel more human-like
+ * - **Polish** - Small details that make big differences
+ * - **Accessibility** - Screen reader support included
+ * 
+ * 🚀 WHY THIS MATTERS:
+ * - **User Engagement** - Keeps users interested while waiting
+ * - **Perceived Performance** - Makes responses feel faster
+ * - **Professional Feel** - Matches expectations from modern chat apps
+ * - **Brand Personality** - Reinforces that SoberPal is caring and responsive
+ */

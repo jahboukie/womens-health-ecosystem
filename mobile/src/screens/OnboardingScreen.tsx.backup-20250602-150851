@@ -1,0 +1,308 @@
+import React, { useState, useRef } from 'react';
+import { View, StyleSheet, Dimensions, ScrollView, Alert } from 'react-native';
+import { Text, Button } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { colors, spacing, typography } from '../constants/theme';
+import { ApiClient } from '../services/apiClient';
+
+const { width } = Dimensions.get('window');
+
+interface OnboardingSlide {
+  id: number;
+  title: string;
+  description: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  color: string;
+}
+
+const slides: OnboardingSlide[] = [
+  {
+    id: 1,
+    title: 'Welcome to Sober Pal',
+    description: 'Your personal AI companion for recovery support, available 24/7 to help you on your journey.',
+    icon: 'hand-heart',
+    color: colors.primary,
+  },
+  {
+    id: 2,
+    title: 'AI-Powered Support',
+    description: 'Chat with our intelligent AI that understands recovery challenges and provides personalized guidance.',
+    icon: 'robot',
+    color: colors.secondary,
+  },
+  {
+    id: 3,
+    title: 'Track Your Progress',
+    description: 'Monitor your milestones, mood, and coping strategies to see how far you\'ve come.',
+    icon: 'chart-line',
+    color: colors.accent,
+  },
+  {
+    id: 4,
+    title: 'Crisis Support',
+    description: 'Immediate access to crisis resources and professional help when you need it most.',
+    icon: 'shield-check',
+    color: colors.crisis,
+  },
+  {
+    id: 5,
+    title: 'Your Privacy Matters',
+    description: 'All your data is encrypted and secure. Your recovery journey is private and protected.',
+    icon: 'lock-check',
+    color: colors.success,
+  },
+];
+
+const OnboardingScreen: React.FC = () => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isTestingAPI, setIsTestingAPI] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const navigation = useNavigation();
+
+  const testAPIConnection = async () => {
+    setIsTestingAPI(true);
+    try {
+      // Test a simple API call that should return validation error
+      const response = await fetch('http://192.168.2.142:3000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ test: 'connection' }),
+      });
+
+      const data = await response.text();
+
+      if (response.status === 400) {
+        // This means the API is working (validation error expected)
+        Alert.alert(
+          '✅ API Connection Success!',
+          'Backend server is running and responding correctly.',
+          [{ text: 'Great!', style: 'default' }]
+        );
+      } else {
+        Alert.alert(
+          '⚠️ Unexpected Response',
+          `Got status: ${response.status}`,
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+    } catch (error: any) {
+      Alert.alert(
+        '❌ API Connection Failed',
+        `Cannot connect to backend server: ${error?.message || 'Unknown error'}`,
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setIsTestingAPI(false);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentSlide < slides.length - 1) {
+      const nextSlide = currentSlide + 1;
+      setCurrentSlide(nextSlide);
+      scrollViewRef.current?.scrollTo({
+        x: nextSlide * width,
+        animated: true,
+      });
+    } else {
+      // Navigate to auth screen
+      navigation.navigate('Auth' as never);
+    }
+  };
+
+  const handleSkip = () => {
+    navigation.navigate('Auth' as never);
+  };
+
+  const handleScroll = (event: any) => {
+    const slideIndex = Math.round(event.nativeEvent.contentOffset.x / width);
+    setCurrentSlide(slideIndex);
+  };
+
+  const renderSlide = (slide: OnboardingSlide, index: number) => (
+    <View key={slide.id} style={[styles.slide, { width }]}>
+      <LinearGradient
+        colors={[slide.color, `${slide.color}80`]}
+        style={styles.slideGradient}
+      >
+        <View style={styles.slideContent}>
+          <View style={styles.iconContainer}>
+            <MaterialCommunityIcons
+              name={slide.icon}
+              size={80}
+              color={colors.textInverse}
+            />
+          </View>
+
+          <Text style={styles.slideTitle}>{slide.title}</Text>
+          <Text style={styles.slideDescription}>{slide.description}</Text>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+
+  const renderPagination = () => (
+    <View style={styles.pagination}>
+      {slides.map((_, index) => (
+        <View
+          key={index}
+          style={[
+            styles.paginationDot,
+            {
+              backgroundColor: index === currentSlide ? colors.textInverse : 'rgba(255, 255, 255, 0.3)',
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        {slides.map(renderSlide)}
+      </ScrollView>
+
+      {renderPagination()}
+
+      <View style={styles.footer}>
+        {/* API Test Button - only show on first slide */}
+        {currentSlide === 0 && (
+          <Button
+            mode="outlined"
+            onPress={testAPIConnection}
+            loading={isTestingAPI}
+            disabled={isTestingAPI}
+            textColor={colors.textInverse}
+            style={styles.testButton}
+          >
+            {isTestingAPI ? 'Testing...' : 'Test API Connection'}
+          </Button>
+        )}
+
+        <View style={styles.buttonContainer}>
+          {currentSlide < slides.length - 1 ? (
+            <>
+              <Button
+                mode="text"
+                onPress={handleSkip}
+                textColor={colors.textInverse}
+                style={styles.skipButton}
+              >
+                Skip
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleNext}
+                buttonColor={colors.textInverse}
+                textColor={slides[currentSlide].color}
+                style={styles.nextButton}
+              >
+                Next
+              </Button>
+            </>
+          ) : (
+            <Button
+              mode="contained"
+              onPress={handleNext}
+              buttonColor={colors.textInverse}
+              textColor={slides[currentSlide].color}
+              style={styles.getStartedButton}
+            >
+              Get Started
+            </Button>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.primary,
+  },
+  slide: {
+    flex: 1,
+  },
+  slideGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  slideContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  iconContainer: {
+    marginBottom: spacing.xl,
+    padding: spacing.lg,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  slideTitle: {
+    fontSize: typography.fontSize.xxxl,
+    fontWeight: 'bold',
+    color: colors.textInverse,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  slideDescription: {
+    fontSize: typography.fontSize.lg,
+    color: colors.textInverse,
+    textAlign: 'center',
+    lineHeight: typography.lineHeight.lg,
+    opacity: 0.9,
+  },
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 4,
+  },
+  footer: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  skipButton: {
+    flex: 1,
+  },
+  nextButton: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  getStartedButton: {
+    width: '100%',
+  },
+  testButton: {
+    marginBottom: spacing.md,
+    borderColor: colors.textInverse,
+  },
+});
+
+export default OnboardingScreen;

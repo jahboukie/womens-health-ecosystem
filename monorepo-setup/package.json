@@ -1,0 +1,79 @@
+{
+  "name": "womens-health-ecosystem",
+  "version": "1.0.0",
+  "description": "Complete Women's Health Ecosystem - Serving 1 Billion Women Globally Through Menopause Journey",
+  "private": true,
+  "author": "Women's Health Ecosystem Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jahboukie/womens-health-ecosystem.git"
+  },
+  "workspaces": [
+    "platforms/meno-tracker/mobile",
+    "platforms/meno-tracker/backend",
+    "platforms/meno-partner/mobile",
+    "platforms/meno-partner/backend",
+    "platforms/meno-community/mobile",
+    "platforms/meno-community/backend",
+    "shared/*"
+  ],
+  "scripts": {
+    "dev:meno-tracker": "cd platforms/meno-tracker/mobile && npm start",
+    "dev:meno-tracker:backend": "cd platforms/meno-tracker/backend && npm run dev",
+    "dev:meno-partner": "cd platforms/meno-partner/mobile && npm start",
+    "dev:meno-partner:backend": "cd platforms/meno-partner/backend && npm run dev",
+    "dev:meno-community": "cd platforms/meno-community/mobile && npm start",
+    "dev:meno-community:backend": "cd platforms/meno-community/backend && npm run dev",
+    "build:all": "npm run build --workspaces --if-present",
+    "test:all": "npm run test --workspaces --if-present",
+    "lint:all": "npm run lint --workspaces --if-present",
+    "clean:all": "npm run clean --workspaces --if-present",
+    "install:all": "npm install --workspaces",
+    "start:meno-tracker": "concurrently \"npm run dev:meno-tracker:backend\" \"npm run dev:meno-tracker\"",
+    "deploy:staging": "./scripts/deploy-staging.sh",
+    "deploy:production": "./scripts/deploy-production.sh",
+    "setup:dev": "./scripts/setup-development.sh",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "lerna": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0",
+    "husky": "^8.0.0",
+    "lint-staged": "^15.0.0"
+  },
+  "engines": {
+    "node": ">=20.10.0",
+    "npm": ">=10.0.0"
+  },
+  "keywords": [
+    "womens-health",
+    "menopause",
+    "healthcare",
+    "ai",
+    "symptom-tracking",
+    "react-native",
+    "typescript",
+    "monorepo"
+  ],
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}

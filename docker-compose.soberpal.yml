@@ -1,0 +1,153 @@
+# 🍃 SoberPal - Docker Compose Configuration
+# Complete SoberPal development environment with backend and database
+
+version: '3.8'
+
+services:
+  # 🗄️ PostgreSQL Database for SoberPal
+  soberpal-postgres:
+    image: postgres:16-alpine
+    container_name: soberpal-postgres
+    environment:
+      POSTGRES_DB: soberpaldatabase
+      POSTGRES_USER: soberpaladmin
+      POSTGRES_PASSWORD: R7t80gqO2uYVdbmx10gF
+    ports:
+      - "5433:5432"
+    volumes:
+      - soberpal_postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - soberpal-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soberpaladmin -d soberpaldatabase"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 🔴 Redis Cache for SoberPal
+  soberpal-redis:
+    image: redis:7-alpine
+    container_name: soberpal-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - soberpal_redis_data:/data
+    networks:
+      - soberpal-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 🍃 SoberPal Backend API
+  soberpal-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: soberpal-backend
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://soberpaladmin:R7t80gqO2uYVdbmx10gF@soberpal-postgres:5432/soberpaldatabase
+      - REDIS_URL=redis://soberpal-redis:6379
+      - PORT=3000
+      - JWT_SECRET=dev_jwt_secret_soberpal_2024
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - CORS_ORIGIN=http://localhost:19006,http://localhost:3001
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      soberpal-postgres:
+        condition: service_healthy
+      soberpal-redis:
+        condition: service_healthy
+    networks:
+      - soberpal-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # 🌐 SoberPal Web App (for future web version)
+  soberpal-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: soberpal-web
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+      - NEXT_PUBLIC_WEB_URL=http://localhost:3001
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - soberpal-backend
+    networks:
+      - soberpal-network
+    restart: unless-stopped
+    profiles:
+      - web
+
+  # 📊 pgAdmin (Database Management)
+  soberpal-pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: soberpal-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@soberpal.health
+      PGADMIN_DEFAULT_PASSWORD: admin_password_2024
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5051:80"
+    volumes:
+      - soberpal_pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - soberpal-postgres
+    networks:
+      - soberpal-network
+    profiles:
+      - tools
+
+# 🌐 Networks
+networks:
+  soberpal-network:
+    driver: bridge
+    name: soberpal-ecosystem
+
+# 💾 Volumes
+volumes:
+  soberpal_postgres_data:
+    name: soberpal-postgres-data
+  soberpal_redis_data:
+    name: soberpal-redis-data
+  soberpal_pgadmin_data:
+    name: soberpal-pgadmin-data
+
+# 🚀 Usage Examples:
+#
+# Start SoberPal backend only:
+#   docker-compose -f docker-compose.soberpal.yml up -d soberpal-backend
+#
+# Start with database management tools:
+#   docker-compose -f docker-compose.soberpal.yml --profile tools up -d
+#
+# Start with web app:
+#   docker-compose -f docker-compose.soberpal.yml --profile web up -d
+#
+# View logs:
+#   docker-compose -f docker-compose.soberpal.yml logs -f soberpal-backend
+#
+# Stop all services:
+#   docker-compose -f docker-compose.soberpal.yml down
+#
+# Reset all data:
+#   docker-compose -f docker-compose.soberpal.yml down -v

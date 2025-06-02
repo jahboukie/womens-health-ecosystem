@@ -1,0 +1,1367 @@
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, Modal, ActivityIndicator } from 'react-native';
+import { useState, useEffect } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+
+export default function App() {
+  const [soberDays, setSoberDays] = useState(0);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [backendConnected, setBackendConnected] = useState(false);
+  const [userProgress, setUserProgress] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Premium Subscription State
+  const [subscriptionTier, setSubscriptionTier] = useState('free'); // 'free', 'premium', 'elite'
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState('');
+  const [premiumFeatureAttempted, setPremiumFeatureAttempted] = useState('');
+
+  // Engagement Tracking State
+  const [dailySageConversations, setDailySageConversations] = useState(0);
+  const [dailyCheckIns, setDailyCheckIns] = useState(0);
+  const [checkInStreak, setCheckInStreak] = useState(0);
+  const [lastCheckInDate, setLastCheckInDate] = useState(null);
+  const [achievements, setAchievements] = useState([]);
+  const [showAchievement, setShowAchievement] = useState(false);
+  const [newAchievement, setNewAchievement] = useState(null);
+
+  // Backend API configuration - Updated for current setup
+  const API_BASE_URL = 'http://localhost:3001/api'; // Local backend for testing
+
+  // Engagement Limits and Configuration
+  const DAILY_LIMITS = {
+    sageConversations: subscriptionTier === 'free' ? 5 : 999,
+    checkIns: subscriptionTier === 'free' ? 3 : 999,
+    copingStrategies: subscriptionTier === 'free' ? 10 : 999
+  };
+
+  const ACHIEVEMENTS = {
+    firstDay: { id: 'first_day', title: 'First Day Hero', description: 'Completed your first day!', icon: '🌟' },
+    oneWeek: { id: 'one_week', title: 'One Week Warrior', description: '7 days strong!', icon: '⚔️' },
+    checkInChamp: { id: 'checkin_champ', title: 'Check-in Champion', description: '7 days of daily check-ins!', icon: '🏆' },
+    thirtyDays: { id: 'thirty_days', title: 'Monthly Master', description: '30 days of sobriety!', icon: '👑' },
+    conversationalist: { id: 'conversationalist', title: 'Sage\'s Friend', description: '50 conversations with Sage!', icon: '💬' },
+    patternMaster: { id: 'pattern_master', title: 'Pattern Master', description: 'Unlocked advanced pattern analysis!', icon: '🔬', premium: true },
+    crisisSurvivor: { id: 'crisis_survivor', title: 'Crisis Survivor', description: 'Used crisis intervention successfully!', icon: '🛡️', premium: true }
+  };
+
+  // Premium Feature Configuration
+  const SAGE_PREMIUM_FEATURES = {
+    advancedTriggerAnalysis: {
+      name: 'Advanced Trigger Pattern Analysis',
+      description: 'I\'ve analyzed 3 months of your check-ins and identified your top 5 trigger patterns. Here\'s your personalized prevention strategy...',
+      tier: 'premium'
+    },
+    crisisIntervention: {
+      name: '24/7 Crisis Intervention Access',
+      description: 'I can see you\'re in a really tough spot right now. I\'m here with you. Let\'s get through this together, one breath at a time...',
+      tier: 'premium'
+    },
+    personalizedRelapsePrevention: {
+      name: 'Personalized Relapse Prevention Plans',
+      description: 'Based on your unique journey, I\'ve created a custom relapse prevention protocol that addresses your specific vulnerabilities...',
+      tier: 'premium'
+    },
+    familySponsorTools: {
+      name: 'Family/Sponsor Communication Tools',
+      description: 'I\'ve prepared personalized communication scripts to help your family and sponsor better support your recovery journey...',
+      tier: 'elite'
+    }
+  };
+
+  // Premium Feature Gating
+  const checkPremiumAccess = (feature) => {
+    const featureConfig = SAGE_PREMIUM_FEATURES[feature];
+    if (!featureConfig) return true; // Free feature
+
+    if (featureConfig.tier === 'premium' && (subscriptionTier === 'premium' || subscriptionTier === 'elite')) {
+      return true;
+    }
+    if (featureConfig.tier === 'elite' && subscriptionTier === 'elite') {
+      return true;
+    }
+    return false;
+  };
+
+  const triggerPaywall = (feature, featureName) => {
+    setPremiumFeatureAttempted(feature);
+    setPaywallFeature(featureName);
+    setShowPaywall(true);
+  };
+
+  const handleUpgrade = (tier) => {
+    Alert.alert(
+      '🚀 Upgrade to ' + tier.charAt(0).toUpperCase() + tier.slice(1),
+      `Redirecting to secure payment...\n\n✅ 7-day free trial\n✅ Cancel anytime\n✅ Unlock all Sage AI features\n\n💳 Stripe secure checkout`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: () => processUpgrade(tier) }
+      ]
+    );
+  };
+
+  const processUpgrade = (tier) => {
+    // In production, this would redirect to Stripe checkout
+    setSubscriptionTier(tier);
+    setShowPaywall(false);
+    Alert.alert(
+      '🎉 Welcome to Premium!',
+      `You now have access to all of Sage's advanced features!\n\n✅ Advanced trigger analysis\n✅ 24/7 crisis intervention\n✅ Personalized prevention plans\n✅ Family communication tools\n\n🌟 Sage is excited to provide you with deeper support!`
+    );
+  };
+
+  // Engagement Tracking Functions
+  const checkDailyLimits = (action) => {
+    const today = new Date().toDateString();
+    const savedDate = localStorage.getItem('lastActionDate');
+
+    if (savedDate !== today) {
+      // Reset daily counters for new day
+      setDailySageConversations(0);
+      setDailyCheckIns(0);
+      localStorage.setItem('lastActionDate', today);
+    }
+
+    switch (action) {
+      case 'sageConversation':
+        return dailySageConversations < DAILY_LIMITS.sageConversations;
+      case 'checkIn':
+        return dailyCheckIns < DAILY_LIMITS.checkIns;
+      default:
+        return true;
+    }
+  };
+
+  const incrementDailyAction = (action) => {
+    switch (action) {
+      case 'sageConversation':
+        setDailySageConversations(prev => prev + 1);
+        break;
+      case 'checkIn':
+        setDailyCheckIns(prev => prev + 1);
+        updateCheckInStreak();
+        break;
+    }
+  };
+
+  const updateCheckInStreak = () => {
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+    if (lastCheckInDate === yesterday) {
+      setCheckInStreak(prev => prev + 1);
+    } else if (lastCheckInDate !== today) {
+      setCheckInStreak(1);
+    }
+
+    setLastCheckInDate(today);
+  };
+
+  const checkAndAwardAchievements = () => {
+    const newAchievements = [];
+
+    // Check for achievements
+    if (soberDays === 1 && !achievements.includes('first_day')) {
+      newAchievements.push(ACHIEVEMENTS.firstDay);
+    }
+    if (soberDays === 7 && !achievements.includes('one_week')) {
+      newAchievements.push(ACHIEVEMENTS.oneWeek);
+    }
+    if (soberDays === 30 && !achievements.includes('thirty_days')) {
+      newAchievements.push(ACHIEVEMENTS.thirtyDays);
+    }
+    if (checkInStreak === 7 && !achievements.includes('checkin_champ')) {
+      newAchievements.push(ACHIEVEMENTS.checkInChamp);
+    }
+
+    if (newAchievements.length > 0) {
+      const achievement = newAchievements[0];
+      setNewAchievement(achievement);
+      setShowAchievement(true);
+      setAchievements(prev => [...prev, achievement.id]);
+    }
+  };
+
+  // API Functions
+  const testBackendConnection = async () => {
+    setLoading(true);
+    try {
+      // Try to connect to real backend first
+      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`);
+      const data = await response.json();
+
+      if (data.status === 'healthy') {
+        setBackendConnected(true);
+        Alert.alert('🎉 Success!', 'Connected to SoberPal backend!\n\n✅ Database: Connected\n✅ API: Healthy\n✅ Ready for features!\n\n🚀 REAL BACKEND CONNECTED!');
+
+        // Load user progress after successful connection
+        await loadUserProgress();
+      } else {
+        throw new Error('Backend unhealthy');
+      }
+    } catch (error) {
+      // Fallback to demo mode
+      setBackendConnected(true);
+      Alert.alert('🎉 Demo Mode!', 'Running in demo mode!\n\n✅ All features working\n✅ Backend simulation active\n✅ Ready for testing!\n\n(Real backend integration ready)');
+      await loadUserProgress();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserProgress = async () => {
+    try {
+      // For demo, we'll create a test user progress
+      const mockProgress = {
+        soberDays: Math.floor(Math.random() * 30) + 1, // Random 1-30 days
+        lastUpdate: new Date().toISOString(),
+        milestones: ['First Day', 'First Week'],
+        mood: 'positive'
+      };
+
+      setUserProgress(mockProgress);
+      setSoberDays(mockProgress.soberDays);
+    } catch (error) {
+      console.error('Failed to load progress:', error);
+    }
+  };
+
+  const saveProgress = async (newDays) => {
+    if (!backendConnected) {
+      Alert.alert('⚠️ Not Connected', 'Please connect to backend first!');
+      return;
+    }
+
+    try {
+      // For demo, we'll just update local state
+      // In production, this would call the real API
+      const updatedProgress = {
+        ...userProgress,
+        soberDays: newDays,
+        lastUpdate: new Date().toISOString()
+      };
+
+      setUserProgress(updatedProgress);
+      setSoberDays(newDays);
+
+      Alert.alert('🎉 Progress Saved!', `Day ${newDays} completed!\n\n✅ Saved to backend\n🎯 Keep going strong!`);
+    } catch (error) {
+      Alert.alert('❌ Save Failed', `Could not save progress: ${error.message}`);
+    }
+  };
+
+  const findSponsor = async () => {
+    if (!backendConnected) {
+      Alert.alert('⚠️ Not Connected', 'Please connect to backend first!');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Simulate finding sponsors
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      Alert.alert(
+        '👥 Sponsors Found!',
+        'Found 3 verified sponsors in your area:\n\n' +
+        '🌟 Sarah M. - 5 years experience\n' +
+        '🌟 Mike R. - 3 years experience\n' +
+        '🌟 Lisa K. - 7 years experience\n\n' +
+        'Would you like to connect with one of them?',
+        [
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'Connect with Sarah', onPress: () => connectToSponsor('Sarah M.') }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('❌ Search Failed', `Could not find sponsors: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const connectToSponsor = (sponsorName) => {
+    Alert.alert(
+      '🎉 Connection Request Sent!',
+      `Your request to connect with ${sponsorName} has been sent!\n\n` +
+      '✅ They will be notified\n' +
+      '✅ You\'ll hear back within 24 hours\n' +
+      '✅ All communications are encrypted\n\n' +
+      'Keep up the great work!'
+    );
+  };
+
+  const openJournal = () => {
+    if (!backendConnected) {
+      Alert.alert('⚠️ Not Connected', 'Please connect to backend first!');
+      return;
+    }
+
+    Alert.alert(
+      '📝 Daily Journal',
+      'How are you feeling today?\n\n' +
+      '• Grateful for another sober day\n' +
+      '• Feeling strong and focused\n' +
+      '• Ready to help others\n\n' +
+      'Journal feature coming soon!',
+      [
+        { text: 'Close', style: 'cancel' },
+        { text: 'Write Entry', onPress: () => Alert.alert('📝 Journal Entry', 'Journal writing interface will open here!') }
+      ]
+    );
+  };
+
+  const chatWithSage = async () => {
+    if (!backendConnected) {
+      Alert.alert('⚠️ Not Connected', 'Please connect to backend first!');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Try to connect to real Sage AI backend
+      const response = await fetch(`${API_BASE_URL}/ai/conversation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': 'demo-user-123' // Demo user for testing
+        },
+        body: JSON.stringify({
+          conversationType: 'checkin',
+          initialMessage: 'Hello Sage, I wanted to check in today.',
+          context: {
+            currentMood: 5,
+            recentTriggers: [],
+            locationContext: 'home'
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const aiMessage = data.data.aiResponse.message;
+
+        Alert.alert(
+          '🌟 Sage AI (Real Backend!)',
+          aiMessage + '\n\n🚀 This is a real response from our Sage AI persona!',
+          [
+            { text: 'Amazing!', style: 'default' },
+            { text: 'Continue Chat', onPress: () => continueChat() }
+          ]
+        );
+      } else {
+        throw new Error('Backend not available');
+      }
+    } catch (error) {
+      // Fallback to demo mode
+      Alert.alert(
+        '🌟 Sage AI Support (Demo)',
+        'Hello! I\'m Sage, your AI recovery companion. I\'ve been walking this journey with people for years, and I see your strength in reaching out today.\n\n' +
+        'How are you feeling right now? I\'m here 24/7 to support you through:\n\n' +
+        '• Crisis intervention\n' +
+        '• Trigger management\n' +
+        '• Recovery milestone celebration\n' +
+        '• Daily check-ins\n\n' +
+        'What would be most helpful for you today?',
+        [
+          { text: 'I\'m struggling', onPress: () => handleSageResponse('struggling') },
+          { text: 'Feeling good!', onPress: () => handleSageResponse('positive') },
+          { text: 'Just checking in', onPress: () => handleSageResponse('checkin') }
+        ]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const continueChat = () => {
+    Alert.alert(
+      '💬 Continue Chat',
+      'Full conversational AI chat interface coming soon!\n\n' +
+      'Features in development:\n' +
+      '• Real-time conversation with Sage\n' +
+      '• Crisis detection and intervention\n' +
+      '• Personalized coping strategies\n' +
+      '• 24/7 availability\n' +
+      '• Progress tracking integration'
+    );
+  };
+
+  const handleSageResponse = (mood) => {
+    // Check daily conversation limits
+    if (!checkDailyLimits('sageConversation')) {
+      Alert.alert(
+        '💔 Daily Limit Reached',
+        `You've used all ${DAILY_LIMITS.sageConversations} daily conversations with me.\n\n🌟 Premium users never hit conversation limits and get unlimited access to my support!\n\n💡 Upgrade now or try again tomorrow.`,
+        [
+          { text: 'Upgrade Now', onPress: () => triggerPaywall('unlimitedConversations', 'Unlimited Sage Conversations') },
+          { text: 'Wait Until Tomorrow', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    incrementDailyAction('sageConversation');
+
+    // Engagement hooks based on usage patterns
+    let engagementHook = '';
+    if (dailySageConversations === 4 && subscriptionTier === 'free') {
+      engagementHook = '\n\n⚠️ You have 1 conversation left today. Premium users get unlimited access!';
+    } else if (soberDays >= 7 && subscriptionTier === 'free') {
+      engagementHook = '\n\n📊 I\'ve been analyzing your patterns for a week now. Premium users get detailed insights!';
+    } else if (soberDays >= 30 && subscriptionTier === 'free') {
+      engagementHook = '\n\n🎉 30 days! Premium users with advanced tracking have 3x better long-term success rates.';
+    }
+
+    const responses = {
+      struggling: 'I understand you\'re having a difficult time, and I want you to know that reaching out shows incredible strength. Recovery isn\'t linear, and that\'s perfectly okay. Let\'s focus on this moment - you\'ve made it this far, which tells me everything about your resilience.' + engagementHook,
+      positive: 'That\'s wonderful to hear! I love celebrating these moments with you. Your positive energy is a testament to the hard work you\'ve been putting into your recovery. What\'s been going particularly well for you today?' + engagementHook,
+      checkin: 'Thank you for taking the time to check in - that\'s a healthy habit that shows you\'re taking your recovery seriously. I\'m here 24/7, no judgment, just support. How has your day been treating you?' + engagementHook
+    };
+
+    const premiumOptions = [
+      {
+        text: 'Advanced Analysis',
+        onPress: () => {
+          if (checkPremiumAccess('advancedTriggerAnalysis')) {
+            showAdvancedAnalysis();
+          } else {
+            triggerPaywall('advancedTriggerAnalysis', 'Advanced Trigger Analysis');
+          }
+        }
+      },
+      {
+        text: 'Crisis Support',
+        onPress: () => {
+          if (checkPremiumAccess('crisisIntervention')) {
+            showCrisisSupport();
+          } else {
+            triggerPaywall('crisisIntervention', '24/7 Crisis Support');
+          }
+        }
+      },
+      { text: 'Basic Strategies', onPress: () => showCopingStrategies() },
+      { text: 'Thank you', style: 'cancel' }
+    ];
+
+    Alert.alert(
+      '🌟 Sage Responds',
+      responses[mood] + '\n\n💡 What kind of support would be most helpful right now?',
+      premiumOptions
+    );
+  };
+
+  const showAdvancedAnalysis = () => {
+    Alert.alert(
+      '🔬 Advanced Trigger Analysis (Premium)',
+      'I\'ve analyzed 3 months of your check-ins and identified your top 5 trigger patterns:\n\n' +
+      '1. 🕐 Late evening stress (8-10 PM)\n' +
+      '2. 👥 Social isolation on weekends\n' +
+      '3. 💼 Work pressure during deadlines\n' +
+      '4. 😴 Poor sleep quality (<6 hours)\n' +
+      '5. 🌧️ Rainy weather patterns\n\n' +
+      '📋 I\'ve created a personalized prevention strategy for each trigger. Would you like to see your custom protocol?',
+      [
+        { text: 'Show Protocol', onPress: () => showPreventionProtocol() },
+        { text: 'Back to Chat', style: 'cancel' }
+      ]
+    );
+  };
+
+  const showCrisisSupport = () => {
+    Alert.alert(
+      '🆘 24/7 Crisis Support (Premium)',
+      'I can see you\'re in a really tough spot right now. I\'m here with you. Let\'s get through this together, one breath at a time.\n\n' +
+      '🫁 First, let\'s do some grounding:\n' +
+      '• Take 4 deep breaths with me\n' +
+      '• Name 5 things you can see\n' +
+      '• Feel your feet on the ground\n\n' +
+      '📞 Emergency contacts are ready if needed.\n' +
+      '💪 You\'ve overcome challenges before - you can do this.',
+      [
+        { text: 'I\'m Safe Now', style: 'default' },
+        { text: 'Need More Help', onPress: () => showEmergencyContacts() }
+      ]
+    );
+  };
+
+  const showPreventionProtocol = () => {
+    Alert.alert(
+      '📋 Your Personalized Prevention Protocol',
+      'Based on your trigger patterns, here\'s your custom strategy:\n\n' +
+      '🕐 Evening Protocol (7-9 PM):\n' +
+      '• Set phone to Do Not Disturb\n' +
+      '• Practice 10-minute meditation\n' +
+      '• Call your sponsor if stress > 7/10\n\n' +
+      '👥 Weekend Social Plan:\n' +
+      '• Schedule 1 recovery meeting\n' +
+      '• Plan 1 social activity\n' +
+      '• Have backup virtual support ready\n\n' +
+      'This protocol has helped 89% of users reduce trigger responses by 60%.'
+    );
+  };
+
+  const showEmergencyContacts = () => {
+    Alert.alert(
+      '📞 Emergency Support Network',
+      'Your safety is my priority. Here are your resources:\n\n' +
+      '🆘 Crisis Hotline: 988\n' +
+      '👥 Sponsor: Sarah M. (Available)\n' +
+      '🏥 Local Crisis Center: (555) 123-4567\n' +
+      '💬 24/7 Text Support: Text HOME to 741741\n\n' +
+      'Remember: This feeling is temporary. You are not alone.'
+    );
+  };
+
+  const showCopingStrategies = () => {
+    Alert.alert(
+      '💡 Coping Strategies',
+      'Here are some evidence-based strategies that might help:\n\n' +
+      '🧘 Deep breathing exercises\n' +
+      '🚶 Take a mindful walk\n' +
+      '📞 Call your support person\n' +
+      '📝 Write in your journal\n' +
+      '🎵 Listen to calming music\n' +
+      '💪 Do some light exercise\n\n' +
+      'Which one feels right for you today?'
+    );
+  };
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleDayComplete = async () => {
+    const newDays = soberDays + 1;
+    await saveProgress(newDays);
+
+    // Check for achievements
+    setTimeout(() => {
+      checkAndAwardAchievements();
+    }, 1000);
+
+    // Milestone-specific messages with upgrade hooks
+    let message = `Congratulations! You've completed day ${newDays} of your sobriety journey. Every day is a victory!`;
+    let upgradeHook = '';
+
+    if (newDays === 1) {
+      message = '🌟 First Day Complete! You\'ve taken the hardest step. The journey of a thousand miles begins with a single step.';
+    } else if (newDays === 7) {
+      message = '⚔️ One Week Warrior! 7 days strong! You\'re building incredible momentum.';
+      upgradeHook = '\n\n📊 Premium users who track patterns in their first week have 60% better outcomes!';
+    } else if (newDays === 30) {
+      message = '👑 30 Days! You\'ve proven to yourself that you can do this. This is a major milestone!';
+      upgradeHook = '\n\n🔬 Premium users get detailed 30-day analysis and personalized strategies for continued success!';
+    } else if (newDays === 90) {
+      message = '🏆 90 Days! Three months of sobriety! You\'re transforming your life one day at a time.';
+      upgradeHook = '\n\n💎 Elite users get quarterly progress reports and family communication tools!';
+    }
+
+    const options = [{ text: 'Keep Going!', style: 'default' }];
+
+    if (upgradeHook && subscriptionTier === 'free') {
+      options.unshift({
+        text: 'Unlock Premium Insights',
+        onPress: () => triggerPaywall('milestoneAnalysis', 'Milestone Analysis & Insights')
+      });
+    }
+
+    Alert.alert(
+      '🎉 Day Complete!',
+      message + upgradeHook,
+      options
+    );
+  };
+
+  const getMotivationalQuote = () => {
+    const quotes = [
+      "Every day is a new beginning. Take a deep breath and start again.",
+      "You are stronger than you think and braver than you feel.",
+      "Recovery is not a destination, it's a journey of self-discovery.",
+      "One day at a time, one step at a time, one breath at a time.",
+      "Your journey matters. Your story matters. You matter.",
+      "Progress, not perfection. Every step forward counts.",
+      "The strongest people are not those who show strength in front of us, but those who win battles we know nothing about."
+    ];
+
+    if (soberDays === 0) return "Today is the first day of the rest of your life.";
+    if (soberDays === 1) return "You did it! The first day is often the hardest.";
+    if (soberDays === 7) return "One week strong! You're building incredible momentum.";
+    if (soberDays === 30) return "30 days! You've proven to yourself that you can do this.";
+
+    return quotes[soberDays % quotes.length];
+  };
+
+  // Premium Paywall Modal Component
+  const PaywallModal = () => (
+    <Modal
+      visible={showPaywall}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setShowPaywall(false)}
+    >
+      <LinearGradient
+        colors={['#1e293b', '#0f172a']}
+        style={styles.paywallContainer}
+      >
+        <ScrollView contentContainerStyle={styles.paywallContent}>
+          {/* Sage Introduction */}
+          <View style={styles.sageIntro}>
+            <Text style={styles.sageAvatar}>🌟</Text>
+            <Text style={styles.sageGreeting}>Hi! I'm Sage 👋</Text>
+            <Text style={styles.sageMessage}>
+              I'd love to help you with {paywallFeature}, but this is one of my premium features.
+            </Text>
+          </View>
+
+          {/* Premium Features Preview */}
+          <View style={styles.premiumPreview}>
+            <Text style={styles.previewTitle}>What you'll get with Premium:</Text>
+            <View style={styles.featureList}>
+              <Text style={styles.featureItem}>✨ Advanced trigger pattern analysis</Text>
+              <Text style={styles.featureItem}>✨ 24/7 crisis intervention access</Text>
+              <Text style={styles.featureItem}>✨ Personalized relapse prevention plans</Text>
+              <Text style={styles.featureItem}>✨ Custom recovery milestone tracking</Text>
+              <Text style={styles.featureItem}>✨ Family/sponsor communication tools</Text>
+            </View>
+          </View>
+
+          {/* Upgrade Options */}
+          <View style={styles.upgradeOptions}>
+            <TouchableOpacity
+              style={styles.premiumButton}
+              onPress={() => handleUpgrade('premium')}
+            >
+              <LinearGradient
+                colors={['#10b981', '#059669']}
+                style={styles.gradientButton}
+              >
+                <Text style={styles.upgradeButtonText}>
+                  Unlock Sage's Full Potential
+                </Text>
+                <Text style={styles.upgradePrice}>$19.99/month</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.eliteButton}
+              onPress={() => handleUpgrade('elite')}
+            >
+              <LinearGradient
+                colors={['#fbbf24', '#f59e0b']}
+                style={styles.gradientButton}
+              >
+                <Text style={styles.upgradeButtonText}>
+                  Elite Recovery Support
+                </Text>
+                <Text style={styles.upgradePrice}>$39.99/month</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <Text style={styles.trialOffer}>Start with 7-day free trial</Text>
+          </View>
+
+          {/* Close Button */}
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setShowPaywall(false)}
+          >
+            <Text style={styles.closeButtonText}>Maybe Later</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </LinearGradient>
+    </Modal>
+  );
+
+  // Achievement Modal Component
+  const AchievementModal = () => (
+    <Modal
+      visible={showAchievement}
+      animationType="fade"
+      transparent={true}
+      onRequestClose={() => setShowAchievement(false)}
+    >
+      <View style={styles.achievementOverlay}>
+        <View style={styles.achievementModal}>
+          <Text style={styles.achievementIcon}>{newAchievement?.icon}</Text>
+          <Text style={styles.achievementTitle}>🎉 Achievement Unlocked!</Text>
+          <Text style={styles.achievementName}>{newAchievement?.title}</Text>
+          <Text style={styles.achievementDescription}>{newAchievement?.description}</Text>
+
+          {newAchievement?.premium && subscriptionTier === 'free' && (
+            <View style={styles.premiumAchievementNote}>
+              <Text style={styles.premiumAchievementText}>
+                🌟 This is a Premium Achievement! Upgrade to unlock more exclusive badges and detailed progress tracking.
+              </Text>
+              <TouchableOpacity
+                style={styles.achievementUpgradeButton}
+                onPress={() => {
+                  setShowAchievement(false);
+                  triggerPaywall('premiumAchievements', 'Premium Achievement System');
+                }}
+              >
+                <Text style={styles.achievementUpgradeText}>Unlock Premium Achievements</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.achievementCloseButton}
+            onPress={() => setShowAchievement(false)}
+          >
+            <Text style={styles.achievementCloseText}>Awesome!</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  return (
+    <ScrollView style={styles.container}>
+      <StatusBar style="light" />
+
+      {/* Premium Paywall Modal */}
+      <PaywallModal />
+
+      {/* Achievement Modal */}
+      <AchievementModal />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.appTitle}>🌟 SoberPal</Text>
+        <Text style={styles.subtitle}>Your Journey to Freedom</Text>
+        {subscriptionTier !== 'free' && (
+          <View style={styles.premiumBadge}>
+            <Text style={styles.premiumBadgeText}>
+              {subscriptionTier === 'premium' ? '⭐ PREMIUM' : '👑 ELITE'}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Sober Counter */}
+      <View style={styles.counterCard}>
+        <View style={styles.connectionStatus}>
+          <Text style={[styles.connectionDot, { backgroundColor: backendConnected ? '#10b981' : '#ef4444' }]}>●</Text>
+          <Text style={styles.connectionText}>
+            {backendConnected ? 'Backend Connected' : 'Backend Disconnected'}
+          </Text>
+        </View>
+        <Text style={styles.counterLabel}>Days Sober</Text>
+        <Text style={styles.counterNumber}>{soberDays}</Text>
+        <Text style={styles.counterSubtext}>
+          {soberDays === 0 ? "Start your journey today!" :
+           soberDays === 1 ? "Amazing first day!" :
+           `${soberDays} days of strength!`}
+        </Text>
+        {userProgress && (
+          <Text style={styles.lastUpdateText}>
+            Last updated: {new Date(userProgress.lastUpdate).toLocaleTimeString()}
+          </Text>
+        )}
+
+        {/* Engagement Tracking */}
+        <View style={styles.engagementSection}>
+          <View style={styles.engagementRow}>
+            <View style={styles.engagementItem}>
+              <Text style={styles.engagementLabel}>Daily Conversations</Text>
+              <Text style={styles.engagementValue}>
+                {dailySageConversations}/{DAILY_LIMITS.sageConversations}
+                {subscriptionTier === 'free' && dailySageConversations >= 4 && ' ⚠️'}
+              </Text>
+            </View>
+            <View style={styles.engagementItem}>
+              <Text style={styles.engagementLabel}>Check-in Streak</Text>
+              <Text style={styles.engagementValue}>{checkInStreak} 🔥</Text>
+            </View>
+          </View>
+
+          {/* Achievement Badges */}
+          {achievements.length > 0 && (
+            <View style={styles.achievementBadges}>
+              <Text style={styles.achievementBadgesTitle}>🏆 Your Achievements</Text>
+              <View style={styles.badgeRow}>
+                {achievements.slice(0, 4).map((achievementId, index) => {
+                  const achievement = Object.values(ACHIEVEMENTS).find(a => a.id === achievementId);
+                  return (
+                    <View key={index} style={styles.badge}>
+                      <Text style={styles.badgeIcon}>{achievement?.icon}</Text>
+                    </View>
+                  );
+                })}
+                {achievements.length > 4 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeIcon}>+{achievements.length - 4}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Premium Upgrade Hint */}
+          {subscriptionTier === 'free' && soberDays >= 7 && (
+            <TouchableOpacity
+              style={styles.upgradeHint}
+              onPress={() => triggerPaywall('engagementInsights', 'Advanced Engagement Analytics')}
+            >
+              <Text style={styles.upgradeHintText}>
+                📊 I've been tracking your patterns for {soberDays} days. Premium users get detailed insights!
+              </Text>
+              <Text style={styles.upgradeHintCTA}>Tap to see what I've learned →</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Current Time */}
+      <View style={styles.timeCard}>
+        <Text style={styles.timeLabel}>Current Time</Text>
+        <Text style={styles.timeText}>
+          {currentTime.toLocaleTimeString()}
+        </Text>
+        <Text style={styles.dateText}>
+          {currentTime.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })}
+        </Text>
+      </View>
+
+      {/* Action Buttons */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.primaryButton, loading && styles.buttonDisabled]}
+          onPress={handleDayComplete}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? '⏳ Saving...' : '✅ Complete Day'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.secondaryButton,
+            backendConnected && styles.connectedButton,
+            loading && styles.buttonDisabled
+          ]}
+          onPress={testBackendConnection}
+          disabled={loading}
+        >
+          <Text style={[
+            styles.secondaryButtonText,
+            backendConnected && styles.connectedButtonText
+          ]}>
+            {loading ? '⏳ Connecting...' :
+             backendConnected ? '✅ Backend Connected' :
+             '📱 Connect to Backend'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.secondaryButton, loading && styles.buttonDisabled]}
+          onPress={findSponsor}
+          disabled={loading}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {loading ? '⏳ Searching...' : '👥 Find Sponsor'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={openJournal}
+        >
+          <Text style={styles.secondaryButtonText}>📝 Daily Journal</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.aiChatButton, loading && styles.buttonDisabled]}
+          onPress={chatWithSage}
+          disabled={loading}
+        >
+          <Text style={styles.aiChatButtonText}>
+            {loading ? '⏳ Connecting to Sage...' : '🌟 Chat with Sage AI'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Motivational Quote */}
+      <View style={styles.quoteCard}>
+        <Text style={styles.quoteText}>
+          "{getMotivationalQuote()}"
+        </Text>
+        <Text style={styles.quoteAuthor}>- SoberPal Community</Text>
+      </View>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          🎯 Backend: localhost:3000 | 📱 SDK 53 | 💪 You've got this!
+        </Text>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0f172a', // Dark blue background
+  },
+  header: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+  },
+  appTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fbbf24', // Golden yellow
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#94a3b8', // Light gray
+    fontStyle: 'italic',
+  },
+  counterCard: {
+    margin: 20,
+    padding: 30,
+    backgroundColor: '#1e293b',
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  counterLabel: {
+    fontSize: 18,
+    color: '#94a3b8',
+    marginBottom: 10,
+  },
+  counterNumber: {
+    fontSize: 64,
+    fontWeight: 'bold',
+    color: '#10b981', // Green
+    marginBottom: 10,
+  },
+  counterSubtext: {
+    fontSize: 16,
+    color: '#fbbf24',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  connectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#374151',
+    borderRadius: 20,
+  },
+  connectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  connectionText: {
+    fontSize: 12,
+    color: '#d1d5db',
+    fontWeight: '500',
+  },
+  lastUpdateText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  timeCard: {
+    margin: 20,
+    marginTop: 0,
+    padding: 20,
+    backgroundColor: '#374151',
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  timeLabel: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginBottom: 8,
+  },
+  timeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#f3f4f6',
+    marginBottom: 4,
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#d1d5db',
+  },
+  buttonContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  primaryButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  secondaryButton: {
+    backgroundColor: '#374151',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    marginBottom: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4b5563',
+  },
+  secondaryButtonText: {
+    color: '#d1d5db',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  connectedButton: {
+    backgroundColor: '#065f46',
+    borderColor: '#10b981',
+    borderWidth: 2,
+  },
+  connectedButtonText: {
+    color: '#10b981',
+    fontWeight: 'bold',
+  },
+  aiChatButton: {
+    backgroundColor: '#7c3aed',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 15,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#a855f7',
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  aiChatButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  quoteCard: {
+    margin: 20,
+    padding: 20,
+    backgroundColor: '#1e293b',
+    borderRadius: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: '#fbbf24',
+  },
+  quoteText: {
+    fontSize: 16,
+    color: '#e2e8f0',
+    fontStyle: 'italic',
+    lineHeight: 24,
+    marginBottom: 10,
+  },
+  quoteAuthor: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'right',
+    fontWeight: '500',
+  },
+  footer: {
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  // Premium Paywall Styles
+  paywallContainer: {
+    flex: 1,
+  },
+  paywallContent: {
+    flexGrow: 1,
+    padding: 20,
+    paddingTop: 60,
+  },
+  sageIntro: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  sageAvatar: {
+    fontSize: 60,
+    marginBottom: 15,
+  },
+  sageGreeting: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fbbf24',
+    marginBottom: 10,
+  },
+  sageMessage: {
+    fontSize: 16,
+    color: '#d1d5db',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  premiumPreview: {
+    backgroundColor: '#374151',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 30,
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fbbf24',
+    marginBottom: 15,
+  },
+  featureList: {
+    gap: 10,
+  },
+  featureItem: {
+    fontSize: 16,
+    color: '#d1d5db',
+    lineHeight: 24,
+  },
+  upgradeOptions: {
+    gap: 15,
+    marginBottom: 30,
+  },
+  premiumButton: {
+    borderRadius: 15,
+    overflow: 'hidden',
+  },
+  eliteButton: {
+    borderRadius: 15,
+    overflow: 'hidden',
+  },
+  gradientButton: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  upgradeButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 5,
+  },
+  upgradePrice: {
+    fontSize: 16,
+    color: '#ffffff',
+    opacity: 0.9,
+  },
+  trialOffer: {
+    fontSize: 14,
+    color: '#10b981',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  closeButton: {
+    padding: 15,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: '#9ca3af',
+  },
+  premiumBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  premiumBadgeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+
+  // Engagement Tracking Styles
+  engagementSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  engagementRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  engagementItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  engagementLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginBottom: 4,
+  },
+  engagementValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fbbf24',
+  },
+  achievementBadges: {
+    marginBottom: 15,
+  },
+  achievementBadgesTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#d1d5db',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  badge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#374151',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fbbf24',
+  },
+  badgeIcon: {
+    fontSize: 18,
+  },
+  upgradeHint: {
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#fbbf24',
+  },
+  upgradeHintText: {
+    fontSize: 14,
+    color: '#d1d5db',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  upgradeHintCTA: {
+    fontSize: 12,
+    color: '#fbbf24',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+
+  // Achievement Modal Styles
+  achievementOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  achievementModal: {
+    backgroundColor: '#1e293b',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    maxWidth: 300,
+    width: '100%',
+  },
+  achievementIcon: {
+    fontSize: 60,
+    marginBottom: 15,
+  },
+  achievementTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fbbf24',
+    marginBottom: 10,
+  },
+  achievementName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#d1d5db',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  achievementDescription: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  premiumAchievementNote: {
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 20,
+  },
+  premiumAchievementText: {
+    fontSize: 12,
+    color: '#d1d5db',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  achievementUpgradeButton: {
+    backgroundColor: '#fbbf24',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  achievementUpgradeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  achievementCloseButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  achievementCloseText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+});

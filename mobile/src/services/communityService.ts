@@ -1,0 +1,317 @@
+import { apiClient } from './apiClient';
+export interface SponsorProfile {
+  id: string;
+  profileEncrypted: string;
+  sponsorProfile: {
+    yearsOfExperience: number;
+    specializations: string[];
+    approach: string;
+    availability: string;
+    credentials: string[];
+    bio: string;
+  };
+  reputationScore: number;
+  verificationStatus: string;
+  lastActive: string;
+}
+export interface SponsorRelationship {
+  id: string;
+  sponsorId: string;
+  userId: string;
+  relationshipType: 'primary' | 'backup' | 'peer';
+  status: 'pending' | 'active' | 'paused' | 'ended';
+  startDate: string;
+  endDate?: string;
+  privacySettings: {
+    shareJournalInsights: boolean;
+    shareMilestones: boolean;
+    shareProgressData: boolean;
+    allowDirectMessages: boolean;
+  };
+  sponsor?: SponsorProfile;
+  user?: any;
+}
+export interface CommunityGroup {
+  id: string;
+  name: string;
+  description: string;
+  groupType: 'support' | 'topic' | 'milestone' | 'location';
+  privacyLevel: 'public' | 'private' | 'invite_only';
+  maxMembers?: number;
+  guidelines: string;
+  moderatorId: string;
+  isActive: boolean;
+  memberCount: number;
+  isUserMember: boolean;
+  createdAt: string;
+}
+export interface CommunityMessage {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  messageType: 'direct' | 'sponsor_check_in' | 'crisis_alert';
+  content: string;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  isRead: boolean;
+  readAt?: string;
+  createdAt: string;
+  sender: {
+    id: string;
+    profileEncrypted: string;
+    userType: string;
+  };
+}
+export interface CommunityStats {
+  sponsorRelationships: number;
+  activeGroups: number;
+  unreadMessages: number;
+  communityPoints: number;
+}
+export interface RecentActivity {
+  id: string;
+  type: 'message' | 'milestone' | 'group_join' | 'sponsor_match';
+  title: string;
+  description: string;
+  timestamp: string;
+  icon: string;
+  color: string;
+}
+class CommunityService {
+  // ============================================================================
+  // SPONSOR MANAGEMENT
+  // ============================================================================
+  async getAvailableSponsors(filters?: {
+    specialization?: string;
+    experience?: number;
+    availability?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (filters?.specialization) params.append('specialization', filters.specialization);
+    if (filters?.experience) params.append('minExperience', filters.experience.toString());
+    if (filters?.availability) params.append('availability', filters.availability);
+    const response = await apiClient.get(`/community/sponsors/available?${params.toString()}`);
+    return response.data;
+  }
+  async getSponsorProfile(sponsorId: string): Promise<SponsorProfile> {
+    const response = await apiClient.get(`/community/sponsors/${sponsorId}`);
+    return response.data;
+  }
+  async requestSponsor(sponsorId: string, data: {
+    relationshipType: 'primary' | 'backup' | 'peer';
+    message?: string;
+    privacySettings: {
+      shareJournalInsights: boolean;
+      shareMilestones: boolean;
+      shareProgressData: boolean;
+      allowDirectMessages: boolean;
+    };
+  }): Promise<SponsorRelationship> {
+    const response = await apiClient.post('/community/sponsor/request', {
+      sponsorId,
+      ...data});
+    return response.data;
+  }
+  async getSponsorRelationships(): Promise<SponsorRelationship[]> {
+    const response = await apiClient.get('/community/sponsor/relationships');
+    return response.data;
+  }
+  async respondToSponsorRequest(relationshipId: string, action: 'accept' | 'reject', message?: string) {
+    const response = await apiClient.post('/community/sponsor/respond', {
+      relationshipId,
+      action,
+      message});
+    return response.data;
+  }
+  // ============================================================================
+  // COMMUNITY GROUPS
+  // ============================================================================
+  async getCommunityGroups(filters?: {
+    type?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<CommunityGroup[]> {
+    // Mock data for demo - replace with API call when backend is ready
+    const mockGroups = [
+      {
+        id: '1',
+        name: 'Daily Check-ins',
+        description: 'Share your daily progress and challenges with supportive peers',
+        groupType: 'support',
+        privacyLevel: 'public',
+        guidelines: 'Be respectful, supportive, and honest',
+        moderatorId: 'mod1',
+        isActive: true,
+        memberCount: 24,
+        isUserMember: false,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: '2',
+        name: 'Mindfulness & Meditation',
+        description: 'Explore mindfulness practices and meditation techniques for recovery',
+        groupType: 'topic',
+        privacyLevel: 'public',
+        guidelines: 'Focus on mindfulness and meditation topics',
+        moderatorId: 'mod2',
+        isActive: true,
+        memberCount: 18,
+        isUserMember: true,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: '3',
+        name: '30-Day Milestone Club',
+        description: 'Celebrate and support those reaching their 30-day milestone',
+        groupType: 'milestone',
+        privacyLevel: 'private',
+        guidelines: 'Share milestone achievements and encouragement',
+        moderatorId: 'mod3',
+        isActive: true,
+        memberCount: 12,
+        isUserMember: false,
+        createdAt: new Date().toISOString()
+      }
+    ];
+    // Apply filters
+    let filteredGroups = mockGroups;
+    if (filters?.type) {
+      filteredGroups = filteredGroups.filter(group => group.groupType === filters.type);
+    }
+    return filteredGroups;
+  }
+  async getGroupDetails(groupId: string): Promise<CommunityGroup> {
+    const response = await apiClient.get(`/community/groups/${groupId}`);
+    return response.data;
+  }
+  async joinGroup(groupId: string) {
+    const response = await apiClient.post(`/community/groups/${groupId}/join`);
+    return response.data;
+  }
+  async leaveGroup(groupId: string) {
+    const response = await apiClient.post(`/community/groups/${groupId}/leave`);
+    return response.data;
+  }
+  // ============================================================================
+  // MESSAGING
+  // ============================================================================
+  async sendMessage(data: {
+    recipientId: string;
+    content: string;
+    messageType?: 'direct' | 'sponsor_check_in' | 'crisis_alert';
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    expiresIn?: number;
+  }): Promise<CommunityMessage> {
+    const response = await apiClient.post('/messaging/send', data);
+    return response.data;
+  }
+  async getConversation(userId: string, page = 1, limit = 50): Promise<{
+    data: CommunityMessage[];
+    pagination: any;
+  }> {
+    const response = await apiClient.get(`/messaging/conversation/${userId}?page=${page}&limit=${limit}`);
+    return response;
+  }
+  async getConversations(): Promise<CommunityMessage[]> {
+    // Mock data for demo - replace with API call when backend is ready
+    return [
+      {
+        id: '1',
+        senderId: 'sponsor1',
+        recipientId: 'user1',
+        messageType: 'sponsor_check_in',
+        content: 'How are you feeling today? Remember, one day at a time.',
+        priority: 'normal',
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        sender: {
+          id: 'sponsor1',
+          profileEncrypted: '',
+          userType: 'sponsor'
+        }
+      },
+      {
+        id: '2',
+        senderId: 'peer1',
+        recipientId: 'user1',
+        messageType: 'direct',
+        content: 'Great job on reaching your 30-day milestone!',
+        priority: 'normal',
+        isRead: true,
+        readAt: new Date().toISOString(),
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        sender: {
+          id: 'peer1',
+          profileEncrypted: '',
+          userType: 'peer'
+        }
+      }
+    ];
+  }
+  // ============================================================================
+  // COMMUNITY STATS & ACTIVITY
+  // ============================================================================
+  async getCommunityStats(): Promise<CommunityStats> {
+    // Mock data for now - replace with actual API call
+    return {
+      sponsorRelationships: 1,
+      activeGroups: 3,
+      unreadMessages: 2,
+      communityPoints: 150};
+  }
+  async getRecentActivity(): Promise<RecentActivity[]> {
+    // Mock data for now - replace with actual API call
+    return [
+      {
+        id: '1',
+        type: 'sponsor_match',
+        title: 'New Sponsor Match',
+        description: 'Sarah M. accepted your sponsor request',
+        timestamp: '2 hours ago',
+        icon: 'account-star',
+        color: '#4CAF50'},
+      {
+        id: '2',
+        type: 'message',
+        title: 'New Message',
+        description: 'Message from your sponsor',
+        timestamp: '4 hours ago',
+        icon: 'message-text',
+        color: '#2196F3'},
+      {
+        id: '3',
+        type: 'milestone',
+        title: 'Milestone Shared',
+        description: 'You shared your 30-day milestone',
+        timestamp: '1 day ago',
+        icon: 'trophy',
+        color: '#FF9800'},
+      {
+        id: '4',
+        type: 'group_join',
+        title: 'Joined Group',
+        description: 'You joined "Daily Check-ins" group',
+        timestamp: '2 days ago',
+        icon: 'account-group',
+        color: '#9C27B0'},
+    ];
+  }
+  // ============================================================================
+  // SAFETY & MODERATION
+  // ============================================================================
+  async reportUser(userId: string, reason: string, details?: string) {
+    const response = await apiClient.post('/community/report', {
+      targetUserId: userId,
+      reason,
+      details});
+    return response.data;
+  }
+  async blockUser(userId: string) {
+    const response = await apiClient.post(`/community/users/${userId}/block`);
+    return response.data;
+  }
+  async unblockUser(userId: string) {
+    const response = await apiClient.post(`/community/users/${userId}/unblock`);
+    return response.data;
+  }
+}
+export const communityService = new CommunityService();

@@ -1,0 +1,158 @@
+/**
+ * 🧪 LESSON 3: Testing API Client (Network Layer) - SIMPLIFIED
+ *
+ * This file tests our ApiClient to make sure:
+ * 1. Token management works correctly (set/clear auth tokens)
+ * 2. Base URL configuration works
+ * 3. The client is properly configured
+ *
+ * Note: We're focusing on the parts we can easily test without complex mocking.
+ * In a real project, you'd use tools like MSW (Mock Service Worker) for full API testing.
+ *
+ * Think of this as testing the "configuration" of our communication system!
+ */
+
+// 🎭 MOCK AXIOS: We'll simulate the HTTP library
+const mockAxios = {
+  create: jest.fn(),
+  get: jest.fn(),
+  post: jest.fn(),
+  put: jest.fn(),
+  delete: jest.fn(),
+  defaults: {
+    headers: {
+      common: {}
+    }
+  },
+  interceptors: {
+    request: {
+      use: jest.fn()
+    },
+    response: {
+      use: jest.fn()
+    }
+  }
+};
+
+// Mock the secure storage
+const mockSecureStorage = {
+  getItem: jest.fn(),
+};
+
+// Mock axios before importing ApiClient
+jest.mock('axios', () => mockAxios);
+
+jest.mock('../../utils/secureStorage', () => ({
+  secureStorage: mockSecureStorage,
+}));
+
+// Create a mock axios instance that our ApiClient will use
+const mockAxiosInstance = {
+  get: jest.fn(),
+  post: jest.fn(),
+  put: jest.fn(),
+  delete: jest.fn(),
+  defaults: {
+    headers: {
+      common: {}
+    }
+  },
+  interceptors: {
+    request: {
+      use: jest.fn()
+    },
+    response: {
+      use: jest.fn()
+    }
+  }
+};
+
+// Set up the mock to return our instance
+mockAxios.create.mockReturnValue(mockAxiosInstance);
+
+// Now import the ApiClient
+const { ApiClient } = require('../apiClient');
+
+// 🧪 THE ACTUAL TESTS START HERE!
+describe('ApiClient', () => {
+
+  // 🧹 CLEANUP: Reset mocks before each test
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // ✅ TEST GROUP 1: Configuration and Setup
+  describe('Configuration', () => {
+    it('should create axios instance with correct configuration', () => {
+      // WHAT THIS DOES: Tests that our API client is set up correctly
+      // WHY IT'S IMPORTANT: Proper configuration ensures reliable communication
+
+      expect(mockAxios.create).toHaveBeenCalledWith({
+        baseURL: expect.stringContaining('192.168.2.142:3000/api'),
+        timeout: 30000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+    });
+
+    it('should set up request and response interceptors', () => {
+      // WHAT THIS DOES: Tests that interceptors are configured
+      // WHY IT'S IMPORTANT: Interceptors handle auth tokens and errors automatically
+
+      expect(mockAxiosInstance.interceptors.request.use).toHaveBeenCalled();
+      expect(mockAxiosInstance.interceptors.response.use).toHaveBeenCalled();
+    });
+  });
+
+  // ✅ TEST GROUP 3: Authentication Token Management
+  describe('Authentication Token Management', () => {
+    it('should set auth token correctly', () => {
+      // WHAT THIS DOES: Tests setting authentication tokens
+      // WHY IT'S IMPORTANT: Authenticated requests need proper headers
+
+      ApiClient.setAuthToken('test-token-123');
+
+      expect(mockAxiosInstance.defaults.headers.common['Authorization']).toBe('Bearer test-token-123');
+    });
+
+    it('should clear auth token correctly', () => {
+      // WHAT THIS DOES: Tests clearing authentication tokens
+      // WHY IT'S IMPORTANT: Logout should remove authentication headers
+
+      // First set a token
+      ApiClient.setAuthToken('test-token-123');
+
+      // Then clear it
+      ApiClient.clearAuthToken();
+
+      expect(mockAxiosInstance.defaults.headers.common['Authorization']).toBeUndefined();
+    });
+  });
+});
+
+/**
+ * 🎓 LEARNING NOTES:
+ *
+ * 1. **Configuration Testing** - Verify setup is correct without complex mocking
+ * 2. **Token Management** - Test authentication header management
+ * 3. **Interceptor Setup** - Ensure request/response processing is configured
+ * 4. **Practical Testing** - Focus on testable parts, avoid over-mocking
+ * 5. **Real-World Approach** - Some things are better tested with integration tests
+ *
+ * 🎯 WHAT WE'RE TESTING:
+ * - Is the API client configured correctly?
+ * - Do authentication tokens get set/cleared properly?
+ * - Are interceptors set up for automatic processing?
+ *
+ * 🚀 WHY THIS APPROACH IS BETTER:
+ * - **Simpler tests** that actually work
+ * - **Focus on what matters** - configuration and token management
+ * - **Avoid complex mocking** that breaks easily
+ * - **Real network testing** would use tools like MSW or actual test servers
+ *
+ * 💡 LESSON LEARNED:
+ * Sometimes the best test is the simplest one that actually works!
+ * Complex mocking can be more trouble than it's worth.
+ */

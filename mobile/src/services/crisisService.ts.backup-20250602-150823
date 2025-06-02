@@ -1,0 +1,298 @@
+import { ApiClient } from './apiClient';
+import { CrisisResource, CrisisEvent, ApiResponse } from '../types';
+
+export class CrisisService {
+  // Get crisis resources
+  static async getCrisisResources(params: {
+    location?: string;
+    type?: string;
+  } = {}): Promise<ApiResponse<CrisisResource[]>> {
+    const queryParams = new URLSearchParams();
+    
+    if (params.location) queryParams.append('location', params.location);
+    if (params.type) queryParams.append('type', params.type);
+
+    const response = await ApiClient.get<CrisisResource[]>(
+      `/crisis/resources?${queryParams.toString()}`
+    );
+
+    return response;
+  }
+
+  // Get user's crisis events
+  static async getCrisisEvents(params: {
+    page?: number;
+    limit?: number;
+  } = {}): Promise<ApiResponse<CrisisEvent[]>> {
+    const queryParams = new URLSearchParams();
+    
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+
+    const response = await ApiClient.get<CrisisEvent[]>(
+      `/crisis/events?${queryParams.toString()}`
+    );
+
+    return response;
+  }
+
+  // Submit crisis follow-up
+  static async submitFollowUp(data: {
+    eventId: string;
+    userSafe: boolean;
+    professionalContacted?: boolean;
+    nextCheckin?: Date;
+    notes?: string;
+  }): Promise<ApiResponse<{ message: string }>> {
+    const response = await ApiClient.post<{ message: string }>(
+      `/crisis/${data.eventId}/followup`,
+      {
+        userSafe: data.userSafe,
+        professionalContacted: data.professionalContacted,
+        nextCheckin: data.nextCheckin,
+        notes: data.notes,
+      }
+    );
+
+    return response;
+  }
+
+  // Notify emergency contacts
+  static async notifyEmergencyContacts(data: {
+    eventId: string;
+    contactIds?: string[];
+  }): Promise<ApiResponse<{ message: string; contactsNotified: number }>> {
+    const response = await ApiClient.post<{ message: string; contactsNotified: number }>(
+      '/crisis/notify-emergency',
+      data
+    );
+
+    return response;
+  }
+
+  // Get crisis statistics
+  static async getCrisisStats(): Promise<ApiResponse<{
+    totalEvents: number;
+    recentEvents: number;
+    resolvedEvents: number;
+    highSeverityEvents: number;
+    resolutionRate: number;
+  }>> {
+    const response = await ApiClient.get<{
+      totalEvents: number;
+      recentEvents: number;
+      resolvedEvents: number;
+      highSeverityEvents: number;
+      resolutionRate: number;
+    }>('/crisis/stats');
+
+    return response;
+  }
+
+  // Get crisis hotlines by location
+  static async getLocalHotlines(location: {
+    latitude?: number;
+    longitude?: number;
+    zipCode?: string;
+    country?: string;
+  }): Promise<CrisisResource[]> {
+    const response = await ApiClient.post<CrisisResource[]>(
+      '/crisis/local-hotlines',
+      location
+    );
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to get local hotlines');
+  }
+
+  // Create crisis safety plan
+  static async createSafetyPlan(plan: {
+    warningSignsPersonal: string[];
+    warningSignsEnvironmental: string[];
+    copingStrategies: string[];
+    socialContacts: Array<{
+      name: string;
+      phone: string;
+      relationship: string;
+    }>;
+    professionalContacts: Array<{
+      name: string;
+      phone: string;
+      type: string;
+    }>;
+    environmentSafety: string[];
+    reasonsForLiving: string[];
+  }): Promise<{ planId: string; message: string }> {
+    const response = await ApiClient.post<{ planId: string; message: string }>(
+      '/crisis/safety-plan',
+      plan
+    );
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to create safety plan');
+  }
+
+  // Get user's safety plan
+  static async getSafetyPlan(): Promise<{
+    id: string;
+    warningSignsPersonal: string[];
+    warningSignsEnvironmental: string[];
+    copingStrategies: string[];
+    socialContacts: Array<{
+      name: string;
+      phone: string;
+      relationship: string;
+    }>;
+    professionalContacts: Array<{
+      name: string;
+      phone: string;
+      type: string;
+    }>;
+    environmentSafety: string[];
+    reasonsForLiving: string[];
+    createdAt: Date;
+    updatedAt: Date;
+  }> {
+    const response = await ApiClient.get<{
+      id: string;
+      warningSignsPersonal: string[];
+      warningSignsEnvironmental: string[];
+      copingStrategies: string[];
+      socialContacts: Array<{
+        name: string;
+        phone: string;
+        relationship: string;
+      }>;
+      professionalContacts: Array<{
+        name: string;
+        phone: string;
+        type: string;
+      }>;
+      environmentSafety: string[];
+      reasonsForLiving: string[];
+      createdAt: Date;
+      updatedAt: Date;
+    }>('/crisis/safety-plan');
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to get safety plan');
+  }
+
+  // Update safety plan
+  static async updateSafetyPlan(planId: string, updates: any): Promise<{ message: string }> {
+    const response = await ApiClient.patch<{ message: string }>(
+      `/crisis/safety-plan/${planId}`,
+      updates
+    );
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to update safety plan');
+  }
+
+  // Report crisis resolved
+  static async markCrisisResolved(eventId: string, notes?: string): Promise<void> {
+    const response = await ApiClient.post(`/crisis/${eventId}/resolve`, { notes });
+
+    if (!response.success) {
+      throw new Error(response.error || 'Failed to mark crisis as resolved');
+    }
+  }
+
+  // Get crisis intervention history
+  static async getCrisisHistory(params: {
+    startDate?: Date;
+    endDate?: Date;
+    severityLevel?: number;
+  } = {}): Promise<CrisisEvent[]> {
+    const queryParams = new URLSearchParams();
+    
+    if (params.startDate) queryParams.append('startDate', params.startDate.toISOString());
+    if (params.endDate) queryParams.append('endDate', params.endDate.toISOString());
+    if (params.severityLevel) queryParams.append('severityLevel', params.severityLevel.toString());
+
+    const response = await ApiClient.get<CrisisEvent[]>(
+      `/crisis/history?${queryParams.toString()}`
+    );
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to get crisis history');
+  }
+
+  // Schedule crisis check-in
+  static async scheduleCheckIn(data: {
+    eventId: string;
+    scheduledTime: Date;
+    message?: string;
+  }): Promise<{ checkInId: string; message: string }> {
+    const response = await ApiClient.post<{ checkInId: string; message: string }>(
+      '/crisis/schedule-checkin',
+      data
+    );
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to schedule check-in');
+  }
+
+  // Get crisis resources by category
+  static async getResourcesByCategory(category: 
+    'suicide_prevention' | 
+    'substance_abuse' | 
+    'mental_health' | 
+    'domestic_violence' | 
+    'lgbtq' | 
+    'veterans'
+  ): Promise<CrisisResource[]> {
+    const response = await ApiClient.get<CrisisResource[]>(
+      `/crisis/resources/category/${category}`
+    );
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to get resources by category');
+  }
+
+  // Test crisis detection
+  static async testCrisisDetection(message: string): Promise<{
+    crisisDetected: boolean;
+    severityLevel: number;
+    confidence: number;
+    triggerPhrases: string[];
+    recommendedActions: string[];
+  }> {
+    const response = await ApiClient.post<{
+      crisisDetected: boolean;
+      severityLevel: number;
+      confidence: number;
+      triggerPhrases: string[];
+      recommendedActions: string[];
+    }>('/crisis/test-detection', { message });
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to test crisis detection');
+  }
+}
+
+export const crisisService = CrisisService;
