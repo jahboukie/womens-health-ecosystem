@@ -15,3 +15,9 @@ dist/
 # Backup files
 ecosystem-backup-*/
 *.migration-backup
+
+# Environment files with sensitive data
+shared/ai/.env
+config/environments/.env.*
+*.env
+ecosystem-config.json
