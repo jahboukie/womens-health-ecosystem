@@ -1,0 +1,50 @@
+{
+  "name": "@womens-health-ecosystem/web-components",
+  "version": "1.0.0",
+  "description": "Shared web components with integrated security for Women's Health Ecosystem",
+  "main": "index.js",
+  "private": true,
+  "keywords": [
+    "react",
+    "components",
+    "security",
+    "healthcare",
+    "web",
+    "shared"
+  ],
+  "author": "Women's Health Ecosystem Team",
+  "license": "PROPRIETARY",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "crypto-js": "^4.2.0",
+    "framer-motion": "^12.15.0",
+    "lucide-react": "^0.511.0",
+    "qrcode.react": "^4.0.1",
+    "js-cookie": "^3.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.6",
+    "@types/crypto-js": "^4.2.2",
+    "@types/js-cookie": "^3.0.6",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "files": [
+    "*.js",
+    "*.jsx",
+    "*.ts",
+    "*.tsx",
+    "*.d.ts",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jahboukie/womens-health-ecosystem.git",
+    "directory": "shared/web-components"
+  }
+}
